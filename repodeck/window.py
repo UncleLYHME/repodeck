@@ -10,6 +10,7 @@ from .fetcher import AutoFetcher
 from .dashboard import Dashboard
 from . import autostart
 from .group import RepoGroup, plural
+from .project import ProjectPage
 from .sidebar import Sidebar
 from .watch import Throttle
 
@@ -57,6 +58,8 @@ class DeckWindow(Adw.ApplicationWindow):
         self.pages = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=150)
         self.pages.add_named(self.dashboard, "home")
         self.pages.add_named(self.stack, "projects")
+        self.project_page = ProjectPage(self)
+        self.pages.add_named(self.project_page, "project")
 
         header = Adw.HeaderBar(show_start_title_buttons=False)
         self.title = Adw.WindowTitle(title="Home")
@@ -86,7 +89,7 @@ class DeckWindow(Adw.ApplicationWindow):
         content = Adw.ToolbarView(content=self.toasts)
         content.add_top_bar(header)
 
-        self.sidebar = Sidebar(self.show_page, self.open_project)
+        self.sidebar = Sidebar(self.show_page, self.show_project)
         side_header = Adw.HeaderBar(show_end_title_buttons=False)
         side_header.set_title_widget(Adw.WindowTitle(title="RepoDeck"))
         side = Adw.ToolbarView(content=self.sidebar)
@@ -198,13 +201,19 @@ class DeckWindow(Adw.ApplicationWindow):
     def panes(self):
         return [p for g in self.groups for p in g.panes]
 
-    def show_page(self, page):
+    def show_page(self, page, path=None):
         self.pages.set_visible_child_name(page)
-        self.title.set_title("Home" if page == "home" else "Projects")
+        self.title.set_title({"home": "Home", "projects": "Projects"}.get(page) or Path(path).name)
+        self.title.set_subtitle("Project analytics" if page == "project" else "")
         self.fold_all.set_visible(page == "projects")
-        self.sidebar.select(page)
+        self.sidebar.select(page, path)
         if page == "home":
             self.dashboard.schedule()
+
+    def show_project(self, path):
+        """The analytics page for one repository."""
+        self.show_page("project", path)
+        self.project_page.show(path)
 
     def open_project(self, path):
         """Show a repo's panel on the Projects page: open its folder, scroll to it and flash it."""
@@ -231,6 +240,12 @@ class DeckWindow(Adw.ApplicationWindow):
     def _on_activity(self):
         self.sidebar.update(self.panes())
         self.dashboard.schedule()
+        if self.pages.get_visible_child_name() == "project":
+            path = self.project_page.path
+            if any(p.path == path for p in self.panes()):
+                self.project_page.show(path)  # same project: live refresh
+            else:
+                self.show_page("home")  # it was removed or deleted
 
     # -- view & refresh ---------------------------------------------------------
 

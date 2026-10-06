@@ -2,7 +2,9 @@
 
 A small GTK4/libadwaita desktop app for Linux that shows source control for several git repositories side by side, like a grid of VS Code Source Control panels.
 
-The window has a sidebar with **Home** and **Projects**, plus every project with a status dot (orange: uncommitted changes, blue: commits to push or pull). Click a project anywhere to jump to its panel.
+The window has a sidebar with **Home** and **Projects**, plus every project with a status dot (orange: uncommitted changes, blue: commits to push or pull).
+
+Click a project in the sidebar for its **analytics page**: commits and lines changed over 30 days (with the change against the previous 30), current commit streak, all-time commits and contributors (one person's different names and emails merged), a 30-day activity chart, a weekday × hour heatmap of when commits happen, languages by size, most changed files (click to open in VS Code), branches with age and ahead/behind, open pull requests and the latest workflow runs, and recent commits. **Open Panel** jumps to the project's panel for committing; the page refreshes itself as the repository changes.
 
 **Home** is a dashboard across all projects, under a pixel-art banner (`data/hero.png`, regenerate with `python3 tools/make_hero.py`):
 

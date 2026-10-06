@@ -32,15 +32,31 @@ class Sidebar(Gtk.Box):
         self.append(self.nav)
 
         self.append(label("PROJECTS", "side-heading"))
-        self.projects = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        self.current = None  # path of the project page being shown
+        self.projects = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.projects.add_css_class("navigation-sidebar")
         self.projects.connect("row-activated", lambda _l, row: self.on_project(row.path))
         self.append(Gtk.ScrolledWindow(child=self.projects, vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
 
-    def select(self, page):
+    def select(self, page, path=None):
+        """Highlight Home/Projects, or (page == "project") the project's row."""
         self._syncing = True
-        self.nav.select_row(self.rows[page])
+        if page in self.rows:
+            self.nav.select_row(self.rows[page])
+        else:
+            self.nav.unselect_all()
+        self.current = path if page == "project" else None
+        self._select_current()
         self._syncing = False
+
+    def _select_current(self):
+        row = self.projects.get_first_child()
+        while row:
+            if getattr(row, "path", None) == self.current:
+                self.projects.select_row(row)
+                return
+            row = row.get_next_sibling()
+        self.projects.unselect_all()
 
     def _on_nav(self, _list, row):
         if row and not self._syncing:
@@ -69,8 +85,9 @@ class Sidebar(Gtk.Box):
             if badge:
                 box.append(label(badge, "side-count", valign=Gtk.Align.CENTER))
             row.set_child(box)
-            row.set_tooltip_text(pane.path)
+            row.set_tooltip_text(f"{pane.path}\nClick for this project's analytics")
             self.projects.append(row)
+        self._select_current()
         projects = self.rows["projects"].badge
         projects.set_visible(bool(dirty))
         projects.set_label(str(dirty))

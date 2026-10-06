@@ -183,3 +183,9 @@ list.changes > row:hover .row-discard, list.changes > row:focus-within .row-disc
 .hunk-head { padding: 6px 8px 6px 12px; border-bottom: 1px solid @rd_border; }
 .mono-strong { font-family: monospace; font-size: 0.85em; color: #7ea2ff; }
 .destructive-pill { background: alpha(#e01b24, 0.2); color: #ff7b72; }
+
+
+/* -- project page ----------------------------------------------------------------- */
+.project-title { font-size: 1.9em; font-weight: 700; letter-spacing: -0.01em; }
+.stat-tile .dash-big { font-size: 1.8em; }
+.axis-label { font-size: 0.68em; opacity: 0.45; }
