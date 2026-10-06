@@ -91,7 +91,9 @@ class CheckoutTest(unittest.TestCase):
 
 class RelaunchTest(unittest.TestCase):
     def test_helper_waits_for_this_process_then_starts_from_the_checkout(self):
-        with mock.patch.object(updater.subprocess, "Popen") as popen:
+        twice = updater.os.pathsep.join([str(updater.APP_DIR), "/other", str(updater.APP_DIR)])
+        with mock.patch.object(updater.subprocess, "Popen") as popen, \
+                mock.patch.dict(updater.os.environ, {"PYTHONPATH": twice}):
             updater.spawn_relaunch()
         args, kwargs = popen.call_args
         cmd = args[0]
@@ -99,7 +101,7 @@ class RelaunchTest(unittest.TestCase):
         self.assertIn('kill -0 "$0"', cmd[2])
         self.assertEqual(cmd[3], str(updater.os.getpid()))
         self.assertEqual(cmd[-2:], ["-m", "repodeck"])
-        self.assertTrue(kwargs["env"]["PYTHONPATH"].startswith(str(updater.APP_DIR)))
+        self.assertEqual(kwargs["env"]["PYTHONPATH"], updater.os.pathsep.join([str(updater.APP_DIR), "/other"]))
         self.assertTrue(kwargs["start_new_session"])
 
 

@@ -112,7 +112,8 @@ def spawn_relaunch():
     The new process can't start first: as a single-instance app it would just hand over to
     this one and quit."""
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(APP_DIR), env.get("PYTHONPATH")]))
+    rest = [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p and p != str(APP_DIR)]
+    env["PYTHONPATH"] = os.pathsep.join([str(APP_DIR), *rest])  # no growth across repeated relaunches
     script = 'while kill -0 "$0" 2>/dev/null; do sleep 0.1; done; exec "$@"'
     subprocess.Popen(["sh", "-c", script, str(os.getpid()), *relaunch_command()], env=env, cwd=str(Path.home()),
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
