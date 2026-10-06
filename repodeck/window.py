@@ -100,7 +100,7 @@ class DeckWindow(Adw.ApplicationWindow):
 
         config = load_config()
         self.fetcher = AutoFetcher(self.panes, config["auto_fetch"])
-        for name, fn in (("add", self.choose_folders), ("refresh", self.refresh_all),
+        for name, fn in (("add", self.choose_folders), ("refresh", self.refresh_now),
                          ("toggle-all", self.toggle_all), ("fetch-all", self.fetcher.fetch)):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", lambda *_, fn=fn: fn())
@@ -299,6 +299,13 @@ class DeckWindow(Adw.ApplicationWindow):
         for g in self.groups:
             for pane in g.panes:
                 pane.refresh()
+
+    def refresh_now(self):
+        """F5 / the refresh button: everything, including GitHub data that's normally reused for a while."""
+        self.refresh_all()
+        self.dashboard.refresh_github(force=True)
+        if self.pages.get_visible_child_name() == "project":
+            self.project_page.reload()
 
     def _safety_refresh(self):
         self.refresh_all()

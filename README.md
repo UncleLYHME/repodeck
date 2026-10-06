@@ -72,6 +72,15 @@ Auto-pull can be switched off from the main menu (☰).
 
 When the window is in the background, auto-pulls, newly fetched commits, new CI failures and new review requests arrive as desktop notifications (switch off in ☰). ☰ → **Start on Login** adds an XDG autostart entry.
 
+## Caching
+
+Results are cached in memory and in `~/.cache/repodeck/cache.json`, so the app starts with data on screen:
+
+- History-derived data (the Home activity scan, project analytics, a panel's history graph and stash list) is keyed on a fingerprint of the repo's branches, tags, remote-tracking refs, stash and HEAD. Editing files doesn't touch it; a commit, fetch, checkout, branch or tag change recomputes just that repository. Tool-private refs (such as `refs/t3/*`) are ignored.
+- A panel's identity and GitHub remote are re-read only when a git config file changes.
+- GitHub answers (pull requests, CI, workflow runs) are reused for 2 minutes. Older data is still shown, with "Updated 3m ago" or "GitHub unreachable · showing data from …", while a fresh copy loads. F5 or the refresh button always asks GitHub again.
+- Entries unused for 30 days are dropped. Deleting the file is always safe.
+
 ## Notes
 
 - Git runs with `GIT_OPTIONAL_LOCKS=0`, so background polling doesn't contend with VS Code for `index.lock`.

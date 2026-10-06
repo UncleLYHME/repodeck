@@ -195,16 +195,25 @@ class ProjectPage(Gtk.ScrolledWindow):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def reload(self):
+        """F5: recompute (cheap when nothing changed) and ask GitHub again."""
+        if self.path:
+            self.schedule()
+            self._load_github(force=True)
+
     def _poll_github(self):
         if self.path and self.get_mapped():
             self._load_github()
         return GLib.SOURCE_CONTINUE
 
-    def _load_github(self):
+    def _load_github(self, force=False):
         path = self.path
+        cached, _age = projectstats.project_github_cached(path)
+        if cached and not force:
+            self._render_github(cached)  # instant; revalidated below when it's old
 
         def work():
-            result = projectstats.project_github(path)
+            result = projectstats.project_github(path, force=force)
             GLib.idle_add(lambda: (self._render_github(result) if path == self.path else None, False)[1])
 
         threading.Thread(target=work, daemon=True).start()
@@ -289,6 +298,7 @@ class ProjectPage(Gtk.ScrolledWindow):
     def _render_github(self, gh):
         self.github = gh
         self.gh.clear()
+        self.gh.set_note(stats.freshness(gh))
         self.github_btn.set_visible(bool(gh["slug"]))
         if not gh["slug"]:
             self.gh.empty("Not hosted on GitHub.")

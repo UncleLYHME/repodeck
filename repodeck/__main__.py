@@ -9,6 +9,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
+from . import cache  # noqa: E402
 from .window import DeckWindow  # noqa: E402
 
 APP_ID = "dev.foundry.RepoDeck"
@@ -35,6 +36,10 @@ class App(Adw.Application):
 
     def _window(self):
         return self.get_active_window() or DeckWindow(self)
+
+    def do_shutdown(self):
+        cache.shared().save()  # don't lose results computed in the last seconds before quitting
+        Adw.Application.do_shutdown(self)
 
     def do_activate(self):
         self._window().present()

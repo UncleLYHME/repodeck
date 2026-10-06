@@ -160,6 +160,10 @@ class Dashboard(Gtk.ScrolledWindow):
         return GLib.SOURCE_CONTINUE
 
     def _first_github(self):
+        cached, _age = stats.github_cached([p.path for p in self.window.panes()])
+        if cached:  # show the last known answer at once; refresh_github revalidates if it's old
+            self.github = cached
+            self._render_github()
         self.refresh_github()
         return GLib.SOURCE_REMOVE
 
@@ -167,14 +171,14 @@ class Dashboard(Gtk.ScrolledWindow):
         self.refresh_github()
         return GLib.SOURCE_CONTINUE
 
-    def refresh_github(self):
+    def refresh_github(self, force=False):
         if self._github_busy:
             return
         self._github_busy = True
         repos = [p.path for p in self.window.panes()]
 
         def work():
-            result = stats.github(repos)
+            result = stats.github(repos, force=force)
             GLib.idle_add(done, result)
 
         def done(result):
@@ -325,6 +329,7 @@ class Dashboard(Gtk.ScrolledWindow):
         gh = self.github
         for card in (self.prs, self.ci):
             card.clear()
+            card.set_note(stats.freshness(gh))
         if gh["error"]:
             for card in (self.prs, self.ci):
                 card.empty(f"GitHub unavailable: {gh['error']}")

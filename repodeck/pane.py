@@ -20,6 +20,18 @@ from .watch import RepoWatcher
 from .widgets import label
 
 
+def config_stamp(repo):
+    """Changes when this repo's or the user's git config files change (identity, remotes)."""
+    paths = [Path(repo, ".git", "config"), Path.home() / ".gitconfig", *Path.home().glob(".gitconfig-*")]
+    stamp = []
+    for p in paths:
+        try:
+            stamp.append((str(p), p.stat().st_mtime_ns))
+        except OSError:
+            stamp.append((str(p), None))
+    return tuple(stamp)
+
+
 def plural(n, word):
     return f"{n} {word}{'' if n == 1 else 's'}"
 
@@ -43,6 +55,7 @@ class RepoPane(Gtk.Box):
         self.fetched_at = None  # wall-clock label for the tooltip
         self.fetch_error = None
         self._pulling = False
+        self._known = {}  # what the last refresh read, and the keys it's valid for
         self.pull_blocked = None  # why the last automatic pull could not run; retried on the next change
 
         self._install_actions()
@@ -145,19 +158,32 @@ class RepoPane(Gtk.Box):
             return
         self._loading = True
 
+        # File events fire constantly while you work, but history, stashes, identity and the remote
+        # rarely change: reuse them until the repo's refs (or its git config) actually move.
+        known = self._known
+
         def work():
             try:
                 st = git.status(self.path)
-                extras = (gitops.identity(self.path), gitops.stashes(self.path), stats.github_slug(self.path))
-                result = (st, git.log(self.path, st), extras, None)
+                fp = git.fingerprint(self.path)
+                log_key = (fp, st.oid, st.branch, int(time.time() // 60))  # %ar dates age by the minute
+                rows = known["rows"] if known.get("log_key") == log_key else git.log(self.path, st)
+                stashes = known["stashes"] if known.get("fp") == fp else gitops.stashes(self.path)
+                stamp = config_stamp(self.path)
+                ident, slug = known["config"] if known.get("stamp") == stamp else \
+                    (gitops.identity(self.path), stats.github_slug(self.path))
+                fresh = {"log_key": log_key, "rows": rows, "fp": fp, "stashes": stashes,
+                         "stamp": stamp, "config": (ident, slug)}
+                result = (st, rows, (ident, stashes, slug), None, fresh)
             except Exception as e:  # missing folder, corrupt repo, ...
-                result = (None, None, None, e)
+                result = (None, None, None, e, {})
             GLib.idle_add(self._apply, *result)
 
         threading.Thread(target=work, daemon=True).start()
 
-    def _apply(self, st, rows, extras, error):
+    def _apply(self, st, rows, extras, error, known):
         self._loading = False
+        self._known = known
         if error:
             self.branch.set_label_text("unavailable", str(error))
             self.sync.set_label("")

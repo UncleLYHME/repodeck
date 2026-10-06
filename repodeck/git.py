@@ -1,5 +1,6 @@
 """Thin wrapper around the git CLI. Calls block; run them off the UI thread."""
 
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -99,6 +100,17 @@ def run(repo, *args, check=True, timeout=None, env=None, input=None):
     if check and p.returncode != 0:
         raise GitError((p.stderr or p.stdout).strip() or f"git {args[0]} failed")
     return p.stdout
+
+
+def fingerprint(repo):
+    """Changes whenever commits, branches, tags, remote-tracking refs, the stash or HEAD change.
+
+    Data derived from history (logs, stats) stays valid while this is unchanged; working-tree
+    edits don't affect it. Tool-private refs (e.g. refs/t3/*) are left out: they churn constantly."""
+    refs = run(repo, "for-each-ref", "--format=%(objectname) %(HEAD) %(refname)",
+               "refs/heads", "refs/remotes", "refs/tags", "refs/stash")
+    head = run(repo, "rev-parse", "-q", "--verify", "HEAD", check=False)
+    return hashlib.sha1((refs + head).encode()).hexdigest()
 
 
 def toplevel(path):

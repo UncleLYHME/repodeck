@@ -53,7 +53,7 @@ class ProjectStatsTest(unittest.TestCase):
             names = ["a.py", "b.js", "c.ts", "d.css", "e.html", "f.md", "g.go", "h.rs", "Dockerfile", "x.png"]
             for i, n in enumerate(names):
                 Path(tmp, n).write_text("x" * (100 - i))
-            langs = projectstats.languages(tmp, names)
+            langs = projectstats.languages({n: 100 - i for i, n in enumerate(names)})
             self.assertEqual(len(langs), 8)
             self.assertEqual(langs[-1][0], projectstats.OTHER)
             self.assertNotIn("x.png", [lang for lang, _ in langs])

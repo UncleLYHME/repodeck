@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import git
+from . import cache, git
 
 DAYS = 14
 FAILED = {"failure", "timed_out", "startup_failure"}
@@ -37,6 +37,30 @@ class Activity:
     recent: list = field(default_factory=list)  # [(timestamp, repo, subject, author, short sha)] newest first
 
 
+def _repo_commits(repo, start):
+    """[[sha, ts, author, subject, added, deleted]] since `start`; cached per repo until its refs move."""
+    key, version = f"activity:{repo}", f"{git.fingerprint(repo)}:{start.isoformat()}"
+    cached, _ = cache.shared().get(key, version=version)
+    if cached is not None:
+        return cached
+    # Branches, remotes and tags only: tools keep private refs (e.g. refs/t3/*) that aren't real work.
+    out = git.run(repo, "log", "--branches", "--remotes", "--tags", "--no-merges", f"--since={start.isoformat()} 00:00",
+                  "--format=\x1e%H\x1f%at\x1f%an\x1f%s", "--numstat")
+    commits = []
+    for block in out.split("\x1e")[1:]:
+        head, _, numstat = block.partition("\n")
+        sha, ts, author, subject = head.split("\x1f", 3)
+        added = deleted = 0
+        for line in numstat.splitlines():
+            parts = line.split("\t")
+            if len(parts) == 3 and parts[0].isdigit():  # binary files show "-"
+                added += int(parts[0])
+                deleted += int(parts[1])
+        commits.append([sha, int(ts), author, subject, added, deleted])
+    cache.shared().put(key, commits, version=version)
+    return commits
+
+
 def activity(repos, today=None):
     today = today or date.today()
     start = today - timedelta(days=DAYS - 1)
@@ -45,29 +69,22 @@ def activity(repos, today=None):
     seen = set()  # forks and clones share commits; count each once
     for repo in repos:
         try:
-            # Branches, remotes and tags only: tools keep private refs (e.g. refs/t3/*) that aren't real work.
-            out = git.run(repo, "log", "--branches", "--remotes", "--tags", "--no-merges", f"--since={start.isoformat()} 00:00",
-                          "--format=\x1e%H\x1f%at\x1f%an\x1f%s", "--numstat")
+            commits = _repo_commits(repo, start)
         except (git.GitError, OSError):
             continue
-        for block in out.split("\x1e")[1:]:
-            head, _, numstat = block.partition("\n")
-            sha, ts, author, subject = head.split("\x1f", 3)
+        for sha, ts, author, subject, added, deleted in commits:
             if sha in seen:
                 continue
             seen.add(sha)
-            day = datetime.fromtimestamp(int(ts)).date()
+            day = datetime.fromtimestamp(ts).date()
             if day not in counts:
                 continue
             counts[day] += 1
             act.total += 1
             act.per_repo[repo] = act.per_repo.get(repo, 0) + 1
-            act.recent.append((int(ts), repo, subject, author, sha[:7]))
-            for line in numstat.splitlines():
-                parts = line.split("\t")
-                if len(parts) == 3 and parts[0].isdigit():  # binary files show "-"
-                    act.added += int(parts[0])
-                    act.deleted += int(parts[1])
+            act.recent.append((ts, repo, subject, author, sha[:7]))
+            act.added += added
+            act.deleted += deleted
     act.days = sorted(counts.items())
     act.recent.sort(reverse=True)
     del act.recent[8:]
@@ -177,12 +194,44 @@ def ci_failures(repos):
     return sorted(out, key=lambda r: r["createdAt"], reverse=True)
 
 
-def github(repos):
-    """PRs and CI failures, or an error string when gh is missing, logged out or offline."""
+GITHUB_TTL = 120  # seconds a GitHub answer is reused before asking again
+
+
+def github(repos, force=False):
+    """PRs and CI failures, or an error string when gh is missing, logged out or offline.
+
+    Reused for GITHUB_TTL seconds; failures aren't cached, so the next call retries."""
+    key = "github:dashboard:" + ",".join(sorted(repos))
+    cached, fresh = cache.shared().get(key, ttl=GITHUB_TTL)
+    if cached is not None and fresh and not force:
+        return cached
     try:
-        return {"prs": pull_requests(), "ci": ci_failures(repos), "error": None}
+        result = {"prs": pull_requests(), "ci": ci_failures(repos), "error": None, "fetched_at": time.time()}
+        cache.shared().put(key, result)
+        return result
     except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as e:
-        return {"prs": {"review": [], "mine": []}, "ci": [], "error": str(e) or type(e).__name__}
+        error = str(e) or type(e).__name__
+        if cached is not None:  # offline or rate-limited: keep showing the last good answer
+            return {**cached, "stale": error}
+        return {"prs": {"review": [], "mine": []}, "ci": [], "error": error}
+
+
+def github_cached(repos):
+    """The last stored dashboard GitHub answer and its age in seconds, without touching the network."""
+    key = "github:dashboard:" + ",".join(sorted(repos))
+    cached, _ = cache.shared().get(key, ttl=GITHUB_TTL)
+    return cached, cache.shared().age(key)
+
+
+def freshness(result, now=None):
+    """'Updated 3m ago', or why the shown data is old."""
+    when = result.get("fetched_at")
+    if not when:
+        return ""
+    age = ago(when, now)
+    if result.get("stale"):
+        return f"GitHub unreachable · showing data from {age} ago"
+    return "Updated just now" if age == "now" else f"Updated {age} ago"
 
 
 def iso_ts(text):
