@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 — 2026-10-06
+
+- Side-by-side compare with syntax highlighting, aligned lines and changed words highlighted; a Unified view is one click away.
+- Right-click a changed file to ignore it, all files with its extension, or its folder.
+- New Activity page: what RepoDeck did automatically and for you, with filters, search and a problems badge.
+- New Preferences window (Ctrl+,): fetch interval, auto-pull per folder, update checks, banner motion, compare layout, and clearing the cache or activity log.
+- Menus no longer crash under screen readers or automation (works around a GTK 4.14 bug), and sidebar rows have accessible names.
+
 ## 1.0.1 — 2026-10-06
 
 - The Home greeting and headline sit on a translucent strip, readable over any sky.

@@ -10,7 +10,7 @@ from gi.repository import GLib
 
 from . import git
 
-INTERVAL_SECONDS = 5 * 60
+INTERVAL_SECONDS = 5 * 60  # default; Preferences can change it
 CHECK_SECONDS = 30
 FIRST_CHECK_SECONDS = 5
 PARALLEL = 2
@@ -20,6 +20,7 @@ class AutoFetcher:
     def __init__(self, panes, enabled):
         self.panes = panes  # callable returning the current panes
         self.enabled = enabled
+        self.interval = INTERVAL_SECONDS
         self.slots = threading.Semaphore(PARALLEL)
         GLib.timeout_add_seconds(FIRST_CHECK_SECONDS, self._first_tick)
         GLib.timeout_add_seconds(CHECK_SECONDS, self._tick)
@@ -36,7 +37,7 @@ class AutoFetcher:
     def fetch(self, due_only=False):
         now = time.monotonic()
         for pane in self.panes():
-            if pane.fetching or (due_only and now - pane.last_fetch < INTERVAL_SECONDS):
+            if pane.fetching or (due_only and now - pane.last_fetch < self.interval):
                 continue
             pane.fetching = True
             behind = pane.status.behind if pane.status else 0

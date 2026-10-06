@@ -1,6 +1,10 @@
-"""Read-only window showing a colored diff or commit."""
+"""Read-only window showing a full patch (git diff / git show), syntax highlighted.
+
+TAGS and line_tag are also used by the hunk window's per-hunk views."""
 
 from gi.repository import Adw, Gtk
+
+from .diffwindow import GtkSource, _buffer, _view  # syntax-highlighted git diff, same look as Compare
 
 MAX_LINES = 20000
 
@@ -30,21 +34,12 @@ class DiffWindow(Adw.Window):
         header = Adw.HeaderBar()
         header.set_title_widget(Adw.WindowTitle(title=title, subtitle=subtitle))
 
-        view = Gtk.TextView(editable=False, cursor_visible=False, monospace=True,
-                            left_margin=12, right_margin=12, top_margin=8, bottom_margin=8)
-        buf = view.get_buffer()
-        for name, props in TAGS.items():
-            buf.create_tag(name, **props)
-
+        buf = _buffer(GtkSource.LanguageManager.get_default().get_language("diff"))
+        view = _view(buf)
         lines = text.splitlines() or ["No differences."]
         if len(lines) > MAX_LINES:
             lines = lines[:MAX_LINES] + [f"… truncated after {MAX_LINES} lines"]
-        for line in lines:
-            tag = line_tag(line)
-            if tag:
-                buf.insert_with_tags_by_name(buf.get_end_iter(), line + "\n", tag)
-            else:
-                buf.insert(buf.get_end_iter(), line + "\n")
+        buf.set_text("\n".join(lines))
 
         content = Adw.ToolbarView()
         content.add_top_bar(header)

@@ -73,6 +73,12 @@ class CheckoutTest(unittest.TestCase):
             updater.apply(update)
         self.assertIn('"1.1.0"', (self.app / "repodeck" / "__init__.py").read_text())
 
+    def test_checks_off_ignores_upstream_but_not_disk(self):
+        self.release(self.dev, "1.1.0", "Upstream only")
+        git.run(self.app, "fetch", "-q")
+        self.assertIsNone(updater.check("1.0.0", fetch=False, remote=False))
+        self.assertEqual(updater.check("1.0.0", fetch=False).source, "remote")
+
     def test_already_on_disk_needs_only_a_restart(self):
         self.release(self.dev, "1.1.0", "Pulled elsewhere")
         git.run(self.app, "pull", "-q")

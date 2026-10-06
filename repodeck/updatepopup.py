@@ -5,7 +5,7 @@ from pathlib import Path
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
-from . import cache, updater
+from . import activity, cache, updater
 from .widgets import label
 
 FIRST_CHECK_SECONDS = 10
@@ -70,9 +70,11 @@ class UpdatePopup(Gtk.Revealer):
         return GLib.SOURCE_CONTINUE
 
     def check(self, fetch=True):
+        remote = self.window.update_checks  # with checks off, only an update already on disk shows
+
         def work():
             try:
-                found = updater.check(fetch=fetch)
+                found = updater.check(fetch=fetch and remote, remote=remote)
             except Exception:  # an update check must never disturb the app
                 found = None
             GLib.idle_add(self._found, found)
@@ -94,6 +96,7 @@ class UpdatePopup(Gtk.Revealer):
             self.notes.append(label(f"• {note}", "update-note", wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR))
         self.error.set_visible(False)
         self.set_reveal_child(True)
+        activity.log(self.title.get_label(), None, activity.AUTO)
         self.window.announce(self.title.get_label(), "Open RepoDeck to restart into the new version.", key="update")
 
     def dismiss(self):
@@ -145,6 +148,7 @@ def restart(window, update):
             window._restart_confirmed = False
             popup.set_busy(False, err)
             return
+        activity.log(f"Restarting into RepoDeck {update.version}", None, activity.YOU)
         window.save()
         cache.shared().save()
         updater.spawn_relaunch()

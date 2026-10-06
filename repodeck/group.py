@@ -5,9 +5,9 @@ from pathlib import Path
 
 from gi.repository import Gio, GLib, Gtk, Pango
 
-from . import git
+from . import activity, git
 from .pane import RepoPane
-from .widgets import label
+from .widgets import label, menu_button
 from .watch import FolderWatcher
 
 MAX_COLUMNS = 3
@@ -27,6 +27,7 @@ class RepoGroup(Gtk.Box):
         self.hidden = set(hidden)  # removed by hand: never auto-add these again
         self.on_changed = on_changed  # persist after edits
         self.on_activity = lambda: None  # any repo's status changed (the dashboard listens)
+        self.auto_pull = True  # per-folder switch in Preferences (the global one must be on too)
         self.on_empty = on_empty
 
         top = Gtk.Box(spacing=4)
@@ -45,12 +46,9 @@ class RepoGroup(Gtk.Box):
         self.header.set_child(row)
         top.append(self.header)
 
-        menu = Gio.Menu()
-        menu.append("Show New Projects Automatically", "group.watch")
-        menu.append("Remove Folder from Deck", "group.remove")
-        more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER,
-                              tooltip_text="Folder actions")
-        more.add_css_class("flat")
+        more = menu_button([[("Show New Projects Automatically", "group.watch", "check")],
+                            [("Remove Folder from Deck", "group.remove")]],
+                           tooltip="Folder actions", valign=Gtk.Align.CENTER)
         top.append(more)
         self.append(top)
 
@@ -133,6 +131,10 @@ class RepoGroup(Gtk.Box):
         if root and (new or gone):
             names = ", ".join(Path(p).name for p in new) or ", ".join(Path(p.path).name for p in gone)
             root.toast(f"{'Added' if new else 'Removed'} {names}")
+        for path in new:
+            activity.log("New project found in the folder and added", path, activity.AUTO)
+        for pane in gone:
+            activity.log("Project removed from the folder; dropped from the deck", pane.path, activity.AUTO)
 
     def relayout(self):
         while child := self.grid.get_first_child():

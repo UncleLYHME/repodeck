@@ -1,8 +1,8 @@
 """Commit message (multi-line), Commit / Commit & Push, and the identity the commit will use."""
 
-from gi.repository import Adw, Gio, Gtk, Pango
+from gi.repository import Adw, Gtk, Pango
 
-from .widgets import label
+from .widgets import action_popover, label
 
 PLACEHOLDER = "Message (Ctrl+Enter to commit)"
 
@@ -34,9 +34,8 @@ class CommitBox(Gtk.Box):
                                            action=Gtk.CallbackAction.new(lambda *_, p=push: on_commit(p) or True)))
         self.view.add_controller(keys)
 
-        menu = Gio.Menu()
-        menu.append("Commit & Push (Ctrl+Shift+Enter)", "pane.commit-push")
-        self.button = Adw.SplitButton(label="Commit", menu_model=menu, sensitive=False, valign=Gtk.Align.START,
+        self.button = Adw.SplitButton(label="Commit", sensitive=False, valign=Gtk.Align.START,
+                                      popover=action_popover([[("Commit & Push (Ctrl+Shift+Enter)", "pane.commit-push")]]),
                                       tooltip_text="Commit the checked files (Ctrl+Enter)")
         self.button.add_css_class("suggested-action")
         self.button.connect("clicked", lambda *_: on_commit(False))

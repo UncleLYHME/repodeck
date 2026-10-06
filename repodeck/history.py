@@ -5,7 +5,8 @@ from pathlib import Path
 
 from gi.repository import GLib, Gtk, Pango
 
-from . import git, graph, skeleton
+from . import compare, git, graph, skeleton
+from .diffwindow import CompareWindow
 from .widgets import file_icon, label, section_header, status_class
 
 MAX_FILES = 500
@@ -213,8 +214,8 @@ class HistoryView(Gtk.Box):
     def _on_activated(self, _list, row):
         if getattr(row, "file", None):
             c, f = row.log, row.file
-            self.show_diff(Path(f.path).name, f"{Path(self.repo).name} · {c.sha} · {f.path}",
-                           lambda: git.commit_file_diff(self.repo, c.full_sha, f))
+            CompareWindow(self.get_root(), Path(f.path).name, f"{Path(self.repo).name} · {c.sha} · {f.path}",
+                          f.path, lambda: compare.commit_versions(self.repo, c.full_sha, f)).present()
             return
         sha = row.log.full_sha
         self._collapse()

@@ -44,8 +44,11 @@ def greeting(hour):
     return "Burning the midnight oil"
 
 
+MOTION = {"enabled": True}  # Preferences → Animated banner
+
+
 def animations_enabled():
-    return Gtk.Settings.get_default().get_property("gtk-enable-animations")
+    return MOTION["enabled"] and Gtk.Settings.get_default().get_property("gtk-enable-animations")
 
 
 class HeroScene(Gtk.Widget):
@@ -96,6 +99,12 @@ class HeroScene(Gtk.Widget):
         self._check_phase()
         if not self._tick and animations_enabled():
             self._tick = GLib.timeout_add(TICK_MS, self._step)
+
+    def motion_changed(self):
+        self._stop()
+        if self.get_mapped():
+            self._start()
+        self.queue_draw()
 
     def _stop(self):
         if self._tick:

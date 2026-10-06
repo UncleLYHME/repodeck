@@ -2,18 +2,19 @@
 
 from pathlib import Path
 
-from gi.repository import Gtk, Pango
+from gi.repository import Gdk, GLib, Gtk, Pango
 
-from . import skeleton
+from . import gitops, skeleton
 from .widgets import file_icon, label, section_header, status_class
 
 MAX_CHANGES = 1000
 
 
 class ChangesView(Gtk.Box):
-    def __init__(self, on_open, on_discard, on_selection):
+    def __init__(self, on_open, on_discard, on_selection, on_ignore):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.on_open, self.on_discard, self.on_selection = on_open, on_discard, on_selection
+        self.on_ignore = on_ignore  # (change, pattern, untrack paths)
         self.changes = []
         self.excluded = set()  # unchecked paths survive refreshes
         self._syncing = False
@@ -83,8 +84,52 @@ class ChangesView(Gtk.Box):
             box.append(undo)
         box.append(label(change.letter, "status", "st-C" if change.kind == "conflict" else status_class(change.letter)))
         row.set_child(box)
-        row.set_tooltip_text(f"{change.orig} → {change.path}" if change.orig else change.path)
+        row.set_tooltip_text((f"{change.orig} → {change.path}" if change.orig else change.path)
+                             + "\nRight-click for more")
+        click = Gtk.GestureClick(button=3)
+        click.connect("pressed", lambda _g, _n, x, y: self._menu(row, x, y))
+        row.add_controller(click)
+        press = Gtk.GestureLongPress()
+        press.connect("pressed", lambda _g, x, y: self._menu(row, x, y))
+        row.add_controller(press)
+        keys = Gtk.ShortcutController()
+        for trigger in ("<Shift>F10", "Menu"):
+            keys.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string(trigger),
+                                           action=Gtk.CallbackAction.new(lambda *_: self._menu(row) or True)))
+        row.add_controller(keys)
         return row
+
+    def _menu(self, row, x=None, y=None):
+        """Context menu: open, ignore (file / extension / folder), discard."""
+        change = row.change
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        popover = Gtk.Popover(child=box, has_arrow=False)
+        popover.add_css_class("menu")
+
+        def item(text, fn, *classes):
+            b = Gtk.Button(child=label(text), css_classes=["flat", "menu-item", *classes])
+            b.connect("clicked", lambda *_: (popover.popdown(), fn()))
+            box.append(b)
+
+        item("Open Changes", lambda: self.on_open(change))
+        if change.kind != "conflict":
+            # A file git already tracks keeps being tracked after it's ignored, so "this file" untracks it too.
+            tracked = change.kind == "tracked" and change.x not in "A?"
+            box.append(Gtk.Separator())
+            for i, (text, pattern) in enumerate(gitops.ignore_choices(change)):
+                untrack = [change.path] if i == 0 and tracked else []
+                verb = "Stop Tracking & Ignore" if untrack else "Ignore"
+                item(f"{verb} {text}",
+                     lambda p=pattern, u=untrack: self.on_ignore(change, p, u))
+            box.append(Gtk.Separator())
+            item("Discard Changes…", lambda: self.on_discard([change]), "menu-destructive")
+        popover.set_parent(row)
+        popover.connect("closed", lambda p: GLib.idle_add(p.unparent))
+        if x is not None:
+            rect = Gdk.Rectangle()
+            rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+            popover.set_pointing_to(rect)
+        popover.popup()
 
     # -- selection ----------------------------------------------------------------
 

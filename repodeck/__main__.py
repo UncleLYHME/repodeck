@@ -22,6 +22,7 @@ class App(Adw.Application):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_OPEN)
         self.set_accels_for_action("win.add", ["<Ctrl>o"])
         self.set_accels_for_action("win.refresh", ["<Ctrl>r", "F5"])
+        self.set_accels_for_action("win.preferences", ["<Ctrl>comma"])
 
     def do_startup(self):
         Adw.Application.do_startup(self)

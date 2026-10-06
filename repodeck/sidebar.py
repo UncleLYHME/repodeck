@@ -18,7 +18,8 @@ class Sidebar(Gtk.Box):
         self.nav = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.nav.add_css_class("navigation-sidebar")
         self.rows = {}
-        for page, title, icon in (("home", "Home", "go-home-symbolic"), ("projects", "Projects", "view-grid-symbolic")):
+        for page, title, icon in (("home", "Home", "go-home-symbolic"), ("projects", "Projects", "view-grid-symbolic"),
+                                  ("activity", "Activity", "document-open-recent-symbolic")):
             row = Gtk.ListBoxRow()
             row.page = page
             box = Gtk.Box(spacing=10)
@@ -27,6 +28,7 @@ class Sidebar(Gtk.Box):
             row.badge = label("", "side-badge", visible=False, valign=Gtk.Align.CENTER)
             box.append(row.badge)
             row.set_child(box)
+            row.update_property([Gtk.AccessibleProperty.LABEL], [title])
             self.nav.append(row)
             self.rows[page] = row
         self.nav.connect("row-selected", self._on_nav)
@@ -64,6 +66,12 @@ class Sidebar(Gtk.Box):
         if row and not self._syncing:
             self.on_page(row.page)
 
+    def set_activity_badge(self, problems):
+        badge = self.rows["activity"].badge
+        badge.set_visible(bool(problems))
+        badge.set_label(str(problems))
+        badge.set_tooltip_text(f"{problems} new problem{'s' * (problems != 1)} since you last looked")
+
     def update(self, panes):
         """Rebuild the project list: orange dot = uncommitted changes, blue = ahead/behind, grey = clean."""
         self.projects.remove_all()
@@ -88,6 +96,8 @@ class Sidebar(Gtk.Box):
                 box.append(label(badge, "side-count", valign=Gtk.Align.CENTER))
             row.set_child(box)
             row.set_tooltip_text(f"{pane.path}\nClick for this project's analytics")
+            state = f"{badge} uncommitted changes" if css == "dot-busy" else ("out of sync" if badge else "clean")
+            row.update_property([Gtk.AccessibleProperty.LABEL], [f"{Path(pane.path).name}, {state}"])
             self.projects.append(row)
         self._select_current()
         projects = self.rows["projects"].badge

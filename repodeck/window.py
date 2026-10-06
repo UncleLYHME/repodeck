@@ -8,20 +8,22 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 from . import git
 from .fetcher import AutoFetcher
 from .dashboard import Dashboard
-from . import autostart
+from . import activity, autostart, diffwindow, hero, prefs
 from .group import RepoGroup, plural
+from .activitypage import ActivityPage
 from .project import ProjectPage
 from . import updatepopup
 from .updatepopup import UpdatePopup
 from .sidebar import Sidebar
 from .watch import Throttle
+from .widgets import menu_button
 
 CONFIG = Path(GLib.get_user_config_dir()) / "repodeck" / "repos.json"
 SAFETY_REFRESH_SECONDS = 60  # file events drive updates; this only refreshes relative dates and catches misses
 
 
 def load_config():
-    """{auto_fetch, auto_pull, groups: [{folder, expanded, watch, hidden, repos}]}.
+    """Settings plus {groups: [{folder, expanded, watch, hidden, auto_pull, repos}]}.
 
     The old flat list of repos is grouped by parent folder."""
     try:
@@ -35,13 +37,16 @@ def load_config():
         data = {"groups": [{"folder": f, "expanded": True, "repos": r} for f, r in groups.items()]}
     groups = [{**g, "repos": [r for r in g.get("repos", []) if Path(r).is_dir()]} for g in data.get("groups", [])]
     return {"auto_fetch": data.get("auto_fetch", True), "auto_pull": data.get("auto_pull", True),
-            "notify": data.get("notify", True), "pinned": set(data.get("pinned", [])), "groups": groups}
+            "notify": data.get("notify", True), "pinned": set(data.get("pinned", [])), "groups": groups,
+            "fetch_minutes": data.get("fetch_minutes", 5), "update_checks": data.get("update_checks", True),
+            "banner_motion": data.get("banner_motion", True), "diff_layout": data.get("diff_layout", "side")}
 
 
 class DeckWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="RepoDeck", default_width=1600, default_height=980)
         self.groups = []
+        self.config_path = CONFIG
 
         # Projects page: the folder sections of repo panes.
         self.sections = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
@@ -71,15 +76,9 @@ class DeckWindow(Adw.ApplicationWindow):
         header.pack_start(add)
         refresh = Gtk.Button(icon_name="view-refresh-symbolic", action_name="win.refresh", tooltip_text="Refresh all (F5)")
         header.pack_end(refresh)
-        menu = Gio.Menu()
-        menu.append("Fetch All Now", "win.fetch-all")
-        menu.append("Fetch Automatically (every 5 min)", "win.auto-fetch")
-        menu.append("Pull Automatically (fast-forward only)", "win.auto-pull")
-        prefs = Gio.Menu()
-        prefs.append("Desktop Notifications When in Background", "win.notify")
-        prefs.append("Start on Login", "win.autostart")
-        menu.append_section(None, prefs)
-        header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, tooltip_text="Main menu"))
+        header.pack_end(menu_button([[("Fetch All Now", "win.fetch-all")],
+                                     [("Activity", "win.show-activity"), ("Preferences", "win.preferences")]],
+                                    icon="open-menu-symbolic", tooltip="Main menu"))
         self.fold_all = Gtk.Button(icon_name="view-list-symbolic", action_name="win.toggle-all")
         header.pack_end(self.fold_all)
 
@@ -95,6 +94,8 @@ class DeckWindow(Adw.ApplicationWindow):
         content.add_top_bar(header)
 
         self.sidebar = Sidebar(self.show_page, self.show_project)
+        self.activity_page = ActivityPage(self)  # needs the sidebar for its badge
+        self.pages.add_named(self.activity_page, "activity")
         side_header = Adw.HeaderBar(show_end_title_buttons=False)
         side_header.set_title_widget(Adw.WindowTitle(title="RepoDeck"))
         side = Adw.ToolbarView(content=self.sidebar)
@@ -105,8 +106,15 @@ class DeckWindow(Adw.ApplicationWindow):
 
         config = load_config()
         self.fetcher = AutoFetcher(self.panes, config["auto_fetch"])
+        self.fetcher.interval = config["fetch_minutes"] * 60
+        self.update_checks = config["update_checks"]
+        hero.MOTION["enabled"] = config["banner_motion"]
+        diffwindow.LAYOUT["value"] = config["diff_layout"]
+        diffwindow.LAYOUT["on_change"] = lambda _layout: self.save()
         for name, fn in (("add", self.choose_folders), ("refresh", self.refresh_now),
-                         ("toggle-all", self.toggle_all), ("fetch-all", self.fetcher.fetch)):
+                         ("toggle-all", self.toggle_all), ("fetch-all", self.fetcher.fetch),
+                         ("preferences", lambda: prefs.PreferencesDialog(self).present(self)),
+                         ("show-activity", lambda: self.show_page("activity"))):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", lambda *_, fn=fn: fn())
             self.add_action(action)
@@ -125,6 +133,7 @@ class DeckWindow(Adw.ApplicationWindow):
             watching = g.get("watch", True)
             if g["repos"] or watching:
                 group = self._add_group(g["folder"], g.get("expanded", True), watching, g.get("hidden", []))
+                group.auto_pull = g.get("auto_pull", True)
                 for repo in g["repos"]:
                     group.add_repo(repo)
                 for pane in group.panes:
@@ -141,8 +150,10 @@ class DeckWindow(Adw.ApplicationWindow):
     def save(self):
         CONFIG.parent.mkdir(parents=True, exist_ok=True)
         data = {"auto_fetch": self.fetcher.enabled, "auto_pull": self.auto_pull, "notify": self.notify_enabled,
+                "fetch_minutes": self.fetcher.interval // 60, "update_checks": self.update_checks,
+                "banner_motion": hero.MOTION["enabled"], "diff_layout": diffwindow.LAYOUT["value"],
                 "pinned": sorted(self.pinned),
-                "groups": [{"folder": g.folder, "expanded": g.expanded, "watch": g.watching,
+                "groups": [{"folder": g.folder, "expanded": g.expanded, "watch": g.watching, "auto_pull": g.auto_pull,
                             "hidden": sorted(g.hidden), "repos": [p.path for p in g.panes]}
                            for g in self.groups]}
         CONFIG.write_text(json.dumps(data, indent=2) + "\n")
@@ -156,6 +167,7 @@ class DeckWindow(Adw.ApplicationWindow):
         return group
 
     def remove_group(self, group):
+        activity.log(f"Removed folder {Path(group.folder).name} from the deck")
         group.close()
         self.groups.remove(group)
         self.sections.remove(group)
@@ -188,6 +200,7 @@ class DeckWindow(Adw.ApplicationWindow):
                 self.toast(f"Watching {Path(section).name} for new projects")
         if added:
             self.toast(f"Added {plural(added, 'repository')}")
+            activity.log(f"Added {plural(added, 'repository')} from {', '.join(Path(f).name for f in folders)}")
         self.save()
 
     def choose_folders(self):
@@ -208,12 +221,15 @@ class DeckWindow(Adw.ApplicationWindow):
 
     def show_page(self, page, path=None):
         self.pages.set_visible_child_name(page)
-        self.title.set_title({"home": "Home", "projects": "Projects"}.get(page) or Path(path).name)
+        self.title.set_title({"home": "Home", "projects": "Projects", "activity": "Activity"}.get(page)
+                             or Path(path).name)
         self.title.set_subtitle("Project analytics" if page == "project" else "")
         self.fold_all.set_visible(page == "projects")
         self.sidebar.select(page, path)
         if page == "home":
             self.dashboard.schedule()
+        elif page == "activity":
+            self.activity_page.seen()
 
     def show_project(self, path):
         """The analytics page for one repository."""
@@ -253,6 +269,35 @@ class DeckWindow(Adw.ApplicationWindow):
                 self.show_page("home")  # it was removed or deleted
 
     # -- view & refresh ---------------------------------------------------------
+
+    # -- settings (Preferences and the window actions both land here) ----------------
+
+    def set_setting(self, key, value):
+        """Apply one setting and save. Toggles also keep their window action's state in step."""
+        if key in ("auto-fetch", "auto-pull", "notify", "autostart"):
+            self.lookup_action(key).change_state(GLib.Variant.new_boolean(value))
+            return
+        if key == "fetch_minutes":
+            self.fetcher.interval = int(value) * 60
+        elif key == "update_checks":
+            self.update_checks = value
+        elif key == "banner_motion":
+            hero.MOTION["enabled"] = value
+            self.dashboard.hero.motion_changed()
+        elif key == "diff_layout":
+            diffwindow.LAYOUT["value"] = value
+        self.save()
+
+    def set_folder_auto_pull(self, group, value):
+        group.auto_pull = value
+        self.save()
+        for pane in group.panes:
+            pane.maybe_auto_pull()
+
+    def auto_pull_for(self, pane):
+        """Auto-pull is on globally and for the folder this repo is in."""
+        group = next((g for g in self.groups if pane in g.panes), None)
+        return self.auto_pull and (group is None or group.auto_pull)
 
     def _on_auto_fetch(self, action, value):
         action.set_state(value)

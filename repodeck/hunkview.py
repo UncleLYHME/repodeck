@@ -5,7 +5,8 @@ from pathlib import Path
 
 from gi.repository import Adw, GLib, Gtk
 
-from . import gitops
+from . import compare, git, gitops
+from .diffwindow import CompareWindow
 from .diffview import TAGS, line_tag
 from .widgets import label
 
@@ -32,6 +33,9 @@ class HunkWindow(Adw.Window):
         self.repo, self.change, self.on_done = repo, change, on_done
         header = Adw.HeaderBar()
         header.set_title_widget(Adw.WindowTitle(title=name, subtitle=f"{Path(repo).name} · {change.path}"))
+        side = Gtk.Button(label="Side by Side", tooltip_text="Compare the whole file with its last commit")
+        side.connect("clicked", lambda *_: self._compare())
+        header.pack_start(side)
         self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin_top=12, margin_bottom=16,
                                margin_start=14, margin_end=14)
         toolbar = Adw.ToolbarView(content=Gtk.ScrolledWindow(child=self.content, vexpand=True))
@@ -42,6 +46,12 @@ class HunkWindow(Adw.Window):
                                        action=Gtk.CallbackAction.new(lambda *_: self.close() or True)))
         self.add_controller(keys)
         self.load()
+
+    def _compare(self):
+        st = git.status(self.repo)
+        change = next((c for c in st.changes if c.path == self.change.path), self.change)
+        CompareWindow(self, Path(change.path).name, f"{Path(self.repo).name} · {change.path} · working tree vs last commit",
+                      change.path, lambda: compare.working_versions(self.repo, st, change)).present()
 
     def load(self):
         def work():

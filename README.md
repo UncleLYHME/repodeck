@@ -24,7 +24,9 @@ Each repository panel shows:
 - a multi-line commit message: **Commit N** (Ctrl+Enter) commits exactly the checked files and leaves everything else (including other staged work) untouched; its dropdown has **Commit & Push** (Ctrl+Shift+Enter)
 - the identity the commit will use (`as Name <email>`); if git has none for the repo, a warning and **Set identity…**, which saves `user.name`/`user.email` in that repo's config (preselecting the `~/.gitconfig-*` profile named after a folder on the repo's path)
 - changed files with checkboxes and a discard button (↶) per file or for all checked files; edits go back to the last commit, new files go to the Trash
-- click a changed file to stage, unstage or discard it hunk by hunk; a file with only part staged shows **partial**, and Commit then takes only its staged part
+- click a changed file to stage, unstage or discard it hunk by hunk (**Side by Side** compares the whole file); a file with only part staged shows **partial**, and Commit then takes only its staged part
+- right-click a changed file (or Shift+F10): **Ignore This File**, **Ignore All .ext Files** or **Ignore Folder …/** adds a line to `.gitignore` (once); for a file git already tracks, "This File" also stops tracking it and leaves it on disk
+- files open in a **compare window**: side by side with syntax highlighting, the two versions aligned line by line, real line numbers, changed words highlighted, Alt+↑/↓ between changes; or **Unified**. The layout you pick is remembered
 - a banner while a merge, rebase, cherry-pick or revert is in progress, with **Abort…**; conflicted files open in VS Code
 - a history graph of all local branches, remotes and tags, with branch/tag pills
 - click a commit to open it in place: its files are listed under it with icons and status letters (M modified, A added, D deleted, R renamed); click a file for its diff in that commit, or the page button on the commit for the full patch. Merge commits list what they brought in. Click again to close.
@@ -47,10 +49,10 @@ A quiet refresh every 60 seconds keeps relative dates current and catches anythi
 
 ## Run
 
-Requires Python 3.10+, GTK 4.12+, libadwaita 1.5+ and PyGObject. On Ubuntu 24.04:
+Requires Python 3.10+, GTK 4.12+, libadwaita 1.5+, GtkSourceView 5 (syntax-highlighted diffs) and PyGObject. On Ubuntu 24.04:
 
 ```sh
-sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1   # already present on most desktops
+sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gtksource-5   # the first three ship with most desktops
 ./install.sh            # adds `repodeck` to ~/.local/bin and an app-menu entry
 repodeck                # or launch "RepoDeck" from the app grid
 repodeck ~/Documents/projects/Personal   # add a repo, or every repo inside a folder
@@ -70,6 +72,10 @@ Without installing: `python3 -m repodeck [FOLDER...]` from this directory.
 **Push** (⋮ menu or Commit & Push) first fetches; if the remote has moved on it fast-forwards, or replays your unpushed commits on top of the remote's (`rebase --autostash`), then pushes. If that replay conflicts it is aborted, your branch is left exactly as it was, nothing is pushed, and you get an explanation.
 
 Auto-pull can be switched off from the main menu (☰).
+
+**Activity** (sidebar, or ☰) lists what RepoDeck did, grouped by day: background pulls and fetch problems (logged when they start and stop, not on every retry), new projects found in a folder, CI failures and review requests, updates, and every action you ran with its result. Filter to Automatic or Problems, or search; the sidebar badge counts problems you haven't seen. Kept in `~/.local/state/repodeck/activity.jsonl` (latest 500).
+
+**Preferences** (Ctrl+, or ☰): start on login, desktop notifications, update checks, the animated banner, the default compare layout; background fetch on/off and its interval (2–60 minutes), auto-pull on/off globally and per folder (e.g. off for work repositories); and the cache and activity log, with their sizes and a Clear button for each.
 
 When the window is in the background, auto-pulls, newly fetched commits, new CI failures and new review requests arrive as desktop notifications (switch off in ☰). ☰ → **Start on Login** adds an XDG autostart entry.
 

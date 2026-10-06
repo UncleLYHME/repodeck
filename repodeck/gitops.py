@@ -130,6 +130,40 @@ def create_branch(repo, name):
     run(repo, "switch", "-c", name)
 
 
+# -- ignore ---------------------------------------------------------------------------
+
+def gitignore_escape(path):
+    """A literal path as a .gitignore pattern (glob characters, leading #/!, trailing spaces escaped)."""
+    out = "".join("\\" + ch if ch in "*?[\\" else ch for ch in path)
+    if out[:1] in ("#", "!"):
+        out = "\\" + out
+    stripped = out.rstrip(" ")
+    return stripped + "\\ " * (len(out) - len(stripped)) if stripped != out else out
+
+
+def ignore_choices(change):
+    """[(label, pattern)] offered for a changed file: the file, its extension, its folder."""
+    p = Path(change.path)
+    choices = [("This File", "/" + gitignore_escape(change.path))]
+    if p.suffix:
+        choices.append((f"All {p.suffix} Files", "*" + gitignore_escape(p.suffix)))
+    if str(p.parent) != ".":
+        choices.append((f"Folder {p.parent}/", "/" + gitignore_escape(str(p.parent)) + "/"))
+    return choices
+
+
+def ignore(repo, pattern, untrack=()):
+    """Add `pattern` to the repo's .gitignore (once). Paths in `untrack` stop being tracked but stay on disk."""
+    path = Path(repo, ".gitignore")
+    text = path.read_text() if path.exists() else ""
+    if pattern not in text.splitlines():
+        if text and not text.endswith("\n"):
+            text += "\n"
+        path.write_text(text + pattern + "\n")
+    if untrack:
+        run(repo, "rm", "--cached", "-q", "-r", "--ignore-unmatch", "--", *untrack)
+
+
 # -- stash, abort ---------------------------------------------------------------------
 
 def stashes(repo):

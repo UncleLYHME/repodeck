@@ -207,15 +207,6 @@ def log(repo, st):
     return rows
 
 
-def file_diff(repo, st, change):
-    if change.kind == "untracked":
-        return run(repo, "diff", "--no-index", "--", "/dev/null", change.path, check=False)
-    paths = [change.orig, change.path] if change.orig else [change.path]
-    if not st.has_commits:
-        return run(repo, "diff", "--cached", "--", *paths) + run(repo, "diff", "--", *paths)
-    return run(repo, "diff", "-M", "HEAD", "--", *paths)
-
-
 def show(repo, sha):
     return run(repo, "show", "--stat", "--patch", "--format=fuller", sha)
 

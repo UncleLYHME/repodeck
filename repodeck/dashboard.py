@@ -12,7 +12,7 @@ from pathlib import Path
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from . import stats
+from . import activity, stats
 from .hero import HeroScene, greeting
 from .cards import Bars, Card, day_letters, dot, icon, row, text
 from .watch import Throttle
@@ -203,11 +203,14 @@ class Dashboard(Gtk.ScrolledWindow):
         seen = {r["url"] for r in before["ci"]}
         for run in after["ci"]:
             if run["url"] not in seen:
+                activity.log(f"CI failed: {run['workflowName']} on {run['headBranch']}", run["repo"], activity.AUTO,
+                             activity.ERROR)
                 self.window.announce(f"CI failed: {run['workflowName']}",
                                      f"{Path(run['repo']).name} / {run['headBranch']}", key=run["url"], uri=run["url"])
         seen = {pr["url"] for pr in before["prs"]["review"]}
         for pr in after["prs"]["review"]:
             if pr["url"] not in seen:
+                activity.log(f"Review requested: {pr['title']} ({pr['repo']}#{pr['number']})", None, activity.AUTO)
                 self.window.announce(f"Review requested: {pr['title']}", f"{pr['repo']}#{pr['number']}",
                                      key=pr["url"], uri=pr["url"])
 

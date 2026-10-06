@@ -67,12 +67,14 @@ def _read_disk(name):
         return ""
 
 
-def check(current=__version__, fetch=True):
-    """The newest available Update, or None. Blocking (may fetch); run off the UI thread."""
+def check(current=__version__, fetch=True, remote=True):
+    """The newest available Update, or None. Blocking (may fetch); run off the UI thread.
+
+    remote=False looks only at the checkout on disk (update checks switched off in Preferences)."""
     on_disk = parse_version(_read_disk(VERSION_FILE))
     if newer(on_disk, current):
         return Update(on_disk, "disk", notes_since(_read_disk(CHANGELOG), current))
-    if not git.toplevel(APP_DIR):
+    if not remote or not git.toplevel(APP_DIR):
         return None
     try:
         if fetch:

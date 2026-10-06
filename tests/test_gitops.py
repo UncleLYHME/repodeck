@@ -117,6 +117,25 @@ class OpsTest(unittest.TestCase):
         gitops.abort(self.repo, "merge")
         self.assertIsNone(git.status(self.repo).operation)
 
+    def test_ignore_new_and_tracked_files(self):
+        self.write("build/out.log", "x\n")
+        self.write("notes [draft].md", "y\n")
+        choices = dict((lbl, pat) for lbl, pat in gitops.ignore_choices(self.changes()["build/out.log"]))
+        self.assertEqual(choices, {"This File": "/build/out.log", "All .log Files": "*.log", "Folder build/": "/build/"})
+        gitops.ignore(self.repo, choices["Folder build/"])
+        gitops.ignore(self.repo, choices["Folder build/"])  # not added twice
+        (pattern,) = [p for _l, p in gitops.ignore_choices(self.changes()["notes [draft].md"]) if p.startswith("/")]
+        self.assertEqual(pattern, "/notes \\[draft].md")
+        gitops.ignore(self.repo, pattern)
+        self.assertEqual(set(self.changes()), {".gitignore"})  # both are now ignored
+        self.assertEqual((self.repo / ".gitignore").read_text(), "/build/\n/notes \\[draft].md\n")
+
+        self.write("b.txt", "changed tracked file\n")
+        gitops.ignore(self.repo, "/b.txt", untrack=["b.txt"])
+        change = self.changes()["b.txt"]
+        self.assertEqual((change.x, change.kind), ("D", "tracked"))  # removed from the index...
+        self.assertTrue((self.repo / "b.txt").exists())  # ...but kept on disk
+
     def test_identity(self):
         gitops.set_identity(self.repo, "Repo Person", "repo@example.com")
         self.assertEqual(gitops.identity(self.repo), ("Repo Person", "repo@example.com"))

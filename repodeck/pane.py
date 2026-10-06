@@ -9,15 +9,16 @@ from urllib.parse import quote
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
-from . import git, gitops, stats
+from . import activity, compare, git, gitops, stats
 from .branches import BranchButton
 from .changes import ChangesView
 from .commitbox import CommitBox
 from .diffview import DiffWindow
+from .diffwindow import CompareWindow
 from .history import HistoryView
 from .hunkview import HunkWindow
 from .watch import RepoWatcher
-from .widgets import label
+from .widgets import label, menu_button
 
 
 def config_stamp(repo):
@@ -30,6 +31,16 @@ def config_stamp(repo):
         except OSError:
             stamp.append((str(p), None))
     return tuple(stamp)
+
+
+FAILED_VERBS = {"Pushed": "Push", "Pulled": "Pull", "Fetched": "Fetch", "Committed": "Commit", "Discarded": "Discard",
+                "Stashed": "Stash", "Applied": "Apply stash", "Switched": "Switch branch", "Created": "Create branch",
+                "Aborted": "Abort", "Identity": "Set identity", "Ignored": "Ignore", "Stopped": "Ignore"}
+
+
+def failed_label(done_msg):
+    """'Pushed' -> 'Push': the action named in a failure entry of the activity log."""
+    return FAILED_VERBS.get(done_msg.split()[0], done_msg)
 
 
 def plural(n, word):
@@ -65,7 +76,7 @@ class RepoPane(Gtk.Box):
         self.append(self.banner)
         self.commit_box = CommitBox(self.commit, self._update_commit_button, self._set_identity_dialog)
         self.append(self.commit_box)
-        self.changes = ChangesView(self._open_change, self._confirm_discard, self._update_commit_button)
+        self.changes = ChangesView(self._open_change, self._confirm_discard, self._update_commit_button, self._ignore)
         self.append(self.changes)
         self.history = HistoryView(path, self._show_diff)
         self.append(self.history)
@@ -93,20 +104,14 @@ class RepoPane(Gtk.Box):
         self.pending = label("", "caption", "pending", valign=Gtk.Align.CENTER, visible=False)
         box.append(self.pending)
 
-        menu = Gio.Menu()
-        for section in (
-            [("Fetch", "fetch"), ("Pull (fast-forward)", "pull"), ("Push", "push")],
-            [("Open on GitHub", "github"), ("Create Pull Request", "pull-request")],
-            [("Stash All Changes", "stash"), ("Apply Latest Stash", "stash-pop")],
-            [("Pin to Top", "pin"), ("Open in Files", "files")]
-            + ([("Open in VS Code", "code")] if shutil.which("code") else []) + [("Remove from Deck", "remove")],
-        ):
-            part = Gio.Menu()
-            for text, action in section:
-                part.append(text, f"pane.{action}")
-            menu.append_section(None, part)
-        more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER)
-        more.add_css_class("flat")
+        sections = [
+            [("Fetch", "pane.fetch"), ("Pull (fast-forward)", "pane.pull"), ("Push", "pane.push")],
+            [("Open on GitHub", "pane.github"), ("Create Pull Request", "pane.pull-request")],
+            [("Stash All Changes", "pane.stash"), ("Apply Latest Stash", "pane.stash-pop")],
+            [("Pinned to Top", "pane.pin", "check"), ("Open in Files", "pane.files")]
+            + ([("Open in VS Code", "pane.code")] if shutil.which("code") else []) + [("Remove from Deck", "pane.remove")],
+        ]
+        more = menu_button(sections, tooltip="Repository actions", valign=Gtk.Align.CENTER)
         box.append(more)
         return box
 
@@ -255,11 +260,16 @@ class RepoPane(Gtk.Box):
         self.fetching = False
         self.last_fetch = time.monotonic()
         self.fetched_at = time.strftime("%H:%M")
+        previous = self.fetch_error
         self.fetch_error = (str(error).strip().splitlines() or [type(error).__name__])[0] if error else None
+        if self.fetch_error and self.fetch_error != previous:  # log changes, not every failing retry
+            activity.log(f"Background fetch failed: {self.fetch_error}", self.path, activity.AUTO, activity.WARN)
+        elif previous and not self.fetch_error:
+            activity.log("Background fetch is working again", self.path, activity.AUTO)
         self._render_sync()
         root = self.get_root()
         # New commits that will be pulled automatically get a "pulled" message instead.
-        if root and fresh and fresh.behind > behind_before and not (root.auto_pull and fresh.can_fast_forward):
+        if root and fresh and fresh.behind > behind_before and not (root.auto_pull_for(self) and fresh.can_fast_forward):
             new = fresh.behind - behind_before
             root.announce(f"{Path(self.path).name}: {plural(new, 'new commit')} to pull", key=f"behind:{self.path}")
 
@@ -299,6 +309,10 @@ class RepoPane(Gtk.Box):
         dialog.connect("response", lambda _d, r: r == "discard" and self._op(
             f"Discarded {plural(len(changes), 'file')}", lambda repo, st: gitops.discard(repo, st, changes)))
         dialog.present(self.get_root())
+
+    def _ignore(self, change, pattern, untrack):
+        what = "Stopped tracking and ignored" if untrack else "Ignored"
+        self._op(f"{what} {pattern}", lambda repo, st: gitops.ignore(repo, pattern, untrack))
 
     def _confirm_abort(self):
         op = self.status.operation if self.status else None
@@ -349,7 +363,7 @@ class RepoPane(Gtk.Box):
         """Fast-forward onto fetched remote commits. Re-runs on every status change, so a blocked
         pull is retried as soon as the files in the way are committed or reverted."""
         st, root = self.status, self.get_root()
-        if not (root and root.auto_pull and st and st.can_fast_forward) or self._pulling or self._busy:
+        if not (root and root.auto_pull_for(self) and st and st.can_fast_forward) or self._pulling or self._busy:
             return
         self._pulling = True
         incoming = st.behind
@@ -365,11 +379,15 @@ class RepoPane(Gtk.Box):
         def done(err):
             self._pulling = False
             if err:
-                self.pull_blocked = (str(err).strip().splitlines() or ["pull failed"])[0]
+                reason = (str(err).strip().splitlines() or ["pull failed"])[0]
+                if reason != self.pull_blocked:
+                    activity.log(f"Auto-pull waiting: {reason}", self.path, activity.AUTO, activity.WARN)
+                self.pull_blocked = reason
             else:
                 self.pull_blocked = None
                 root = self.get_root()
                 if root:
+                    activity.log(f"Pulled {plural(incoming, 'new commit')}", self.path, activity.AUTO)
                     root.announce(f"{Path(self.path).name}: pulled {plural(incoming, 'new commit')}",
                                   key=f"pulled:{self.path}")
             self._render_sync()
@@ -399,10 +417,13 @@ class RepoPane(Gtk.Box):
             self.spinner.stop()
             root = self.get_root()
             if err:
+                reason = (str(err).strip().splitlines() or [type(err).__name__])[0]
+                activity.log(f"{failed_label(done_msg)} failed: {reason}", self.path, activity.YOU, activity.ERROR)
                 root.alert(f"{Path(self.path).name}: action failed", str(err))
             else:
                 if after:
                     after()
+                activity.log(done_msg, self.path, activity.YOU)
                 root.toast(f"{Path(self.path).name}: {done_msg}")
             self.refresh()
 
@@ -436,5 +457,5 @@ class RepoPane(Gtk.Box):
         elif change.kind == "tracked" and not st.operation:
             HunkWindow(self.get_root(), self.path, change, self.refresh).present()
         else:
-            self._show_diff(Path(change.path).name, f"{Path(self.path).name} · {change.path}",
-                            lambda: git.file_diff(self.path, st, change))
+            CompareWindow(self.get_root(), Path(change.path).name, f"{Path(self.path).name} · {change.path}",
+                          change.path, lambda: compare.working_versions(self.path, st, change)).present()
