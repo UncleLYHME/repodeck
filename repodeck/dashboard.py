@@ -7,16 +7,17 @@ GitHub cards (pull requests, CI) refresh every few minutes through the gh CLI.
 
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from . import stats
+from .hero import HeroScene, greeting
 from .cards import Bars, Card, day_letters, dot, icon, row, text
 from .watch import Throttle
 from .widgets import label
 
-HERO = Path(__file__).resolve().parent.parent / "data" / "hero.png"
 SERVICES_SECONDS = 8
 GITHUB_SECONDS = 5 * 60
 SHOW = 5  # rows per card before "+N more"
@@ -68,14 +69,14 @@ class Dashboard(Gtk.ScrolledWindow):
 
     def _build_hero(self):
         overlay = Gtk.Overlay()
-        picture = Gtk.Picture.new_for_filename(str(HERO))
-        picture.set_content_fit(Gtk.ContentFit.COVER)
-        picture.set_size_request(-1, 330)
-        picture.set_can_shrink(True)
-        overlay.set_child(picture)
+        self.hero = HeroScene(on_phase=lambda _phase: self._update_greeting())
+        overlay.set_child(self.hero)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, valign=Gtk.Align.END,
                       halign=Gtk.Align.CENTER, margin_bottom=6)
+        self.greeting = label("", "hero-greeting", xalign=0.5)
+        box.append(self.greeting)
+        self._update_greeting()
         box.append(label("What's happening across your projects?", "hero-title", xalign=0.5))
         self.hero_sub = label("", "hero-sub", xalign=0.5)
         box.append(self.hero_sub)
@@ -91,6 +92,9 @@ class Dashboard(Gtk.ScrolledWindow):
         box.append(composer)
         overlay.add_overlay(box)
         return overlay
+
+    def _update_greeting(self):
+        self.greeting.set_label(greeting(datetime.now().hour))
 
     def _matching(self):
         q = self.search.get_text().strip().lower()

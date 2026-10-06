@@ -5,10 +5,13 @@ from pathlib import Path
 
 from gi.repository import GLib, Gtk, Pango
 
-from . import git, graph
+from . import git, graph, skeleton
 from .widgets import file_icon, label, section_header, status_class
 
 MAX_FILES = 500
+BATCH = 40  # commit rows built at a time; more are built as you scroll toward the end
+AHEAD = 400  # px before the end at which the next batch starts building
+SKELETONS = 3
 
 
 class HistoryView(Gtk.Box):
@@ -42,20 +45,65 @@ class HistoryView(Gtk.Box):
         self.list.add_css_class("history")
         self.list.set_placeholder(label("No commits yet", "dim-label", "placeholder", xalign=0.5))
         self.list.connect("row-activated", self._on_activated)
-        self.append(Gtk.ScrolledWindow(child=self.list, vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        self.scroller = Gtk.ScrolledWindow(child=self.list, vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
+        adj = self.scroller.get_vadjustment()
+        adj.connect("value-changed", lambda *_: self._maybe_more())
+        adj.connect("changed", lambda *_: self._maybe_more())  # also fills a tall panel that can't scroll yet
+        self.append(self.scroller)
+        self.built = 0  # commit rows created so far (rows[:built])
+        self.skeletons = []
+        self._more_pending = False
+        self._show_skeletons(6)  # until the first history arrives
 
     def set_rows(self, rows):
+        keep = max(BATCH, self.built)  # don't make the user scroll for rows they'd already loaded
         self.rows = rows
         self.file_rows = []
+        self.skeletons = []
         self.list.remove_all()
+        self.built = 0
+        # Layout is cheap and needs every commit for consistent lanes; widgets are the costly part.
         self.lanes = graph.layout([(r.full_sha, r.parents) for r in rows])
         self.lane_count = graph.lane_count(self.lanes)
-        for r, lane in zip(rows, self.lanes):
-            self.list.append(self._commit_row(r, lane))
+        self._build(len(rows) if self.query else keep)
         self.count.set_label(str(len(rows)))
         open_sha, self.expanded = self.expanded, None
         if open_sha:
             self._expand(open_sha)  # keep the same commit open across refreshes
+
+    # -- lazy building ----------------------------------------------------------
+
+    def _show_skeletons(self, n):
+        for row in self.skeletons:
+            self.list.remove(row)
+        self.skeletons = [skeleton.list_row(i, "dot") for i in range(n)]
+        for row in self.skeletons:
+            self.list.append(row)
+
+    def _build(self, upto):
+        """Create commit rows up to index `upto`, keeping skeleton rows at the end while more remain."""
+        upto = min(upto, len(self.rows))
+        for row in self.skeletons:
+            self.list.remove(row)
+        self.skeletons = []
+        for r, lane in zip(self.rows[self.built:upto], self.lanes[self.built:upto]):
+            self.list.append(self._commit_row(r, lane))
+        self.built = max(self.built, upto)
+        if self.built < len(self.rows):
+            self._show_skeletons(SKELETONS)
+
+    def _maybe_more(self):
+        if self._more_pending or self.built >= len(self.rows):
+            return
+        adj = self.scroller.get_vadjustment()
+        if adj.get_value() + adj.get_page_size() >= adj.get_upper() - AHEAD:
+            self._more_pending = True
+            GLib.idle_add(self._more)  # after this frame, so the skeletons paint first
+
+    def _more(self):
+        self._more_pending = False
+        self._build(self.built + BATCH)
+        return GLib.SOURCE_REMOVE
 
     # -- rows -------------------------------------------------------------------
 
@@ -120,6 +168,8 @@ class HistoryView(Gtk.Box):
 
     def _on_search(self):
         query = self.search.get_text().strip().lower()
+        if query:
+            self._build(len(self.rows))  # search looks through every loaded commit
         if bool(query) != bool(self.query):
             self._collapse()
             self.expanded = None
@@ -183,6 +233,9 @@ class HistoryView(Gtk.Box):
         return None
 
     def _expand(self, sha):
+        index = next((i for i, r in enumerate(self.rows) if r.full_sha == sha), None)
+        if index is not None and index >= self.built:
+            self._build(index + 1)
         row = self._find(sha)
         if not row:
             return

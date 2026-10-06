@@ -107,6 +107,7 @@ list.history > row.commit-file image { opacity: 0.8; }
 
 /* -- dashboard ---------------------------------------------------------------- */
 .hero-title { font-size: 1.75em; font-weight: 700; color: white; text-shadow: 0 2px 12px rgba(0,0,0,0.6); }
+.hero-greeting { font-size: 0.8em; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: alpha(white, 0.8); text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
 .hero-sub { color: alpha(white, 0.65); text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
 .hero-input {
   background: alpha(#1d1e22, 0.94);
@@ -189,3 +190,19 @@ list.changes > row:hover .row-discard, list.changes > row:focus-within .row-disc
 .project-title { font-size: 1.9em; font-weight: 700; letter-spacing: -0.01em; }
 .stat-tile .dash-big { font-size: 1.8em; }
 .axis-label { font-size: 0.68em; opacity: 0.45; }
+
+
+/* -- skeleton loading ---------------------------------------------------------------- */
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+.skeleton {
+  border-radius: 6px;
+  background-color: alpha(white, 0.05);
+  background-image: linear-gradient(90deg, transparent 30%, alpha(white, 0.07) 50%, transparent 70%);
+  background-size: 300% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.skeleton.skeleton-dot { border-radius: 99px; }
+list.history > row.skeleton-row, list.changes > row.skeleton-row { background: none; }

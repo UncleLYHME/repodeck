@@ -13,7 +13,7 @@ from pathlib import Path
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
-from . import projectstats, stats
+from . import projectstats, skeleton, stats
 from .cards import Bars, Card, dot, icon, row, text
 from .charts import Heatmap, StackedBar, heatmap_block, language_parts, legend_grid
 from .watch import Throttle
@@ -44,12 +44,25 @@ class Tile(Gtk.Box):
         self.add_css_class("dash-card")
         self.add_css_class("stat-tile")
         self.append(label(caption, "card-title"))
-        self.value = label("–", "dash-big")
+        self.value = label("", "dash-big")
         self.append(self.value)
         self.sub = label("", "card-meta", ellipsize=Pango.EllipsizeMode.END)
         self.append(self.sub)
+        self.placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=6)
+        self.placeholder.append(skeleton.bar(70, 22))
+        self.placeholder.append(skeleton.bar(150, 8))
+        self.append(self.placeholder)
+        self.loading()
+
+    def loading(self):
+        self.value.set_visible(False)
+        self.sub.set_visible(False)
+        self.placeholder.set_visible(True)
 
     def set(self, value, sub):
+        self.placeholder.set_visible(False)
+        self.value.set_visible(True)
+        self.sub.set_visible(True)
         self.value.set_label(value)
         self.sub.set_label(sub)
 
@@ -154,11 +167,16 @@ class ProjectPage(Gtk.ScrolledWindow):
     def show(self, path):
         changed = path != self.path
         self.path = path
-        if changed:
+        if changed:  # another project: skeletons instead of the previous project's numbers
             self.github = None
             self.github_btn.set_visible(False)
-            self.gh.clear()
-            self.gh.empty("Loading…")
+            for tile in (self.t_commits, self.t_lines, self.t_streak, self.t_total):
+                tile.loading()
+            for card in (self.activity, self.langs, self.hot, self.people, self.branches, self.gh, self.recent):
+                card.loading()
+                card.set_note("")
+                card.set_count(0)
+            self.heatmap.set_counts({})
             self.get_vadjustment().set_value(0)
         self._render_header()
         self.schedule()

@@ -2,6 +2,7 @@
 
 from gi.repository import Adw, Gdk, Graphene, Gsk, Gtk, Pango
 
+from . import skeleton
 from .widgets import label
 
 BAR = "#3b6fe0"
@@ -25,6 +26,7 @@ class Card(Gtk.Box):
         self.append(head)
         self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, vexpand=True)
         self.append(self.body)
+        self.loading()
         self.note = label("", "card-note", visible=False)
         self.append(self.note)
 
@@ -39,6 +41,11 @@ class Card(Gtk.Box):
     def clear(self):
         while child := self.body.get_first_child():
             self.body.remove(child)
+
+    def loading(self, n=3):
+        """Skeleton rows until the card's data arrives (the first clear() removes them)."""
+        self.clear()
+        self.body.append(skeleton.rows(n, "dot"))
 
     def empty(self, text):
         self.body.append(label(text, "card-empty", wrap=True))

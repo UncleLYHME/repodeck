@@ -4,6 +4,7 @@ from pathlib import Path
 
 from gi.repository import Gtk, Pango
 
+from . import skeleton
 from .widgets import file_icon, label, section_header, status_class
 
 MAX_CHANGES = 1000
@@ -39,6 +40,8 @@ class ChangesView(Gtk.Box):
         # Grows with the change count up to a cap; history gets the remaining height.
         self.append(Gtk.ScrolledWindow(child=self.list, propagate_natural_height=True,
                                        max_content_height=260, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        for i in range(2):  # until the first status arrives
+            self.list.append(skeleton.list_row(i, "check"))
 
     def render(self, changes):
         self.changes = changes

@@ -6,7 +6,7 @@ The window has a sidebar with **Home** and **Projects**, plus every project with
 
 Click a project in the sidebar for its **analytics page**: commits and lines changed over 30 days (with the change against the previous 30), current commit streak, all-time commits and contributors (one person's different names and emails merged), a 30-day activity chart, a weekday × hour heatmap of when commits happen, languages by size, most changed files (click to open in VS Code), branches with age and ahead/behind, open pull requests and the latest workflow runs, and recent commits. **Open Panel** jumps to the project's panel for committing; the page refreshes itself as the repository changes.
 
-**Home** is a dashboard across all projects, under a pixel-art banner (`data/hero.png`, regenerate with `python3 tools/make_hero.py`):
+**Home** is a dashboard across all projects, under a pixel-art coast whose light follows the time of day: dawn (5–8), day (8–17), dusk (17–20) and night, cross-fading as the hour changes, with a matching greeting. Clouds drift, stars twinkle and the lighthouse beam pulses at dusk and night; the motion pauses while Home is hidden and stops entirely if the desktop asks for reduced animation. The layers live in `data/hero/<phase>/` (regenerate with `python3 tools/make_hero.py`).
 
 - **Jump to a project…**: type part of a name, Enter opens it
 - **Working now**: projects with uncommitted changes, branch and file counts
@@ -29,6 +29,7 @@ Each repository panel shows:
 - a history graph of all local branches, remotes and tags, with branch/tag pills
 - click a commit to open it in place: its files are listed under it with icons and status letters (M modified, A added, D deleted, R renamed); click a file for its diff in that commit, or the page button on the commit for the full patch. Merge commits list what they brought in. Click again to close.
 - search history (🔍) by message, author, hash or the name of a file a commit touched
+- history rows are built 40 at a time as you scroll (the graph is laid out for all 300 up front, so lanes stay consistent); shimmering skeleton rows mark what's still loading, here and in every card and panel before its first data arrives
 - ⋮ menu: Fetch, Pull (fast-forward only), Push · Open on GitHub, Create Pull Request (opens GitHub's compare page) · Stash All Changes (including new files), Apply Latest Stash · Pin to Top, Open in Files, Open in VS Code, Remove
 - pinned projects (★) sort first in their folder and in the sidebar
 
