@@ -1,0 +1,185 @@
+/* Palette: near-black surfaces with a cool blue accent (the app always runs dark). */
+@define-color window_bg_color #17181b;
+@define-color view_bg_color #17181b;
+@define-color headerbar_bg_color #17181b;
+@define-color headerbar_backdrop_color #17181b;
+@define-color sidebar_bg_color #111214;
+@define-color sidebar_backdrop_color #111214;
+@define-color card_bg_color #1d1e22;
+@define-color popover_bg_color #222327;
+@define-color dialog_bg_color #1d1e22;
+@define-color accent_bg_color #3b6fe0;
+@define-color accent_color #7ea2ff;
+@define-color rd_border alpha(white, 0.07);
+
+.pane { padding-bottom: 6px; border: 1px solid @rd_border; }
+
+.pane-header { padding: 12px 12px 8px 14px; }
+
+.branch {
+  background: alpha(@accent_bg_color, 0.16);
+  color: @accent_color;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.commit-box { padding: 0 12px 8px 12px; }
+
+.pending {
+  background: alpha(#e5a50a, 0.18);
+  color: #c88800;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-weight: 700;
+}
+
+.section-header {
+  padding: 8px 14px 4px 14px;
+  border-top: 1px solid alpha(currentColor, 0.08);
+}
+.section-title { font-size: 0.75em; font-weight: 800; letter-spacing: 0.08em; opacity: 0.6; }
+.count {
+  background: alpha(currentColor, 0.1);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 0.75em;
+  font-weight: 700;
+}
+
+list.changes, list.history { background: transparent; }
+list.changes > row { padding: 3px 14px 3px 10px; }
+/* No vertical padding: graph lines must meet the next row's lines exactly. */
+list.history > row { padding: 0 14px 0 10px; min-height: 28px; }
+.placeholder { padding: 18px; }
+
+.status { font-family: monospace; font-weight: 800; min-width: 1.2em; }
+.st-M { color: #c88800; }
+.st-A, .st-U { color: #2ec27e; }
+.st-D { color: #e01b24; }
+.st-R, .st-C, .st-T { color: #3584e4; }
+.st-C { color: #c061cb; }
+.staged { color: @accent_color; opacity: 0.8; }
+
+.ref {
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 0.75em;
+  font-weight: 700;
+  color: white;
+}
+.ref-head { background: #26a269; }
+.ref-branch { background: #3584e4; }
+.ref-remote { background: #77767b; }
+.ref-tag { background: #c88800; }
+.meta { font-size: 0.82em; opacity: 0.55; }
+
+/* An opened commit and the files listed under it (padding stays vertical-free for the graph). */
+list.history > row.expanded {
+  background: alpha(@accent_bg_color, 0.14);
+  box-shadow: inset 0 0 0 1px alpha(@accent_bg_color, 0.55);
+  border-radius: 6px;
+}
+list.history > row.commit-file { min-height: 26px; }
+list.history > row.commit-file image { opacity: 0.8; }
+.row-action { min-height: 22px; min-width: 22px; padding: 0 4px; }
+
+.group-header { padding: 6px 10px; border-radius: 12px; }
+.group-header .title-4 { font-size: 1.15em; }
+
+
+/* -- sidebar ------------------------------------------------------------------ */
+.deck-sidebar { padding: 4px 0 8px 0; }
+.side-heading { font-size: 0.7em; font-weight: 800; letter-spacing: 0.1em; opacity: 0.45; margin: 16px 18px 4px 18px; }
+.side-badge, .side-count {
+  font-size: 0.75em; font-weight: 700; border-radius: 999px; padding: 0 7px;
+  background: alpha(#e5a50a, 0.18); color: #f0b43c;
+}
+.side-count { background: alpha(white, 0.06); color: alpha(white, 0.6); font-family: monospace; }
+
+.dot { font-size: 0.7em; }
+.dot-busy { color: #f0b43c; }
+.dot-sync { color: #6f97ff; }
+.dot-ok { color: #3ccf8e; }
+.dot-warn { color: #f66151; }
+.dot-idle { color: alpha(white, 0.22); }
+
+/* -- dashboard ---------------------------------------------------------------- */
+.hero-title { font-size: 1.75em; font-weight: 700; color: white; text-shadow: 0 2px 12px rgba(0,0,0,0.6); }
+.hero-sub { color: alpha(white, 0.65); text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
+.hero-input {
+  background: alpha(#1d1e22, 0.94);
+  border: 1px solid @rd_border;
+  border-radius: 14px;
+  padding: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+}
+.hero-input entry { background: transparent; box-shadow: none; min-height: 38px; }
+
+.dash-card {
+  background: @card_bg_color;
+  border: 1px solid @rd_border;
+  border-radius: 12px;
+  padding: 12px 14px 12px 14px;
+}
+.card-icon { opacity: 0.55; }
+.card-title { font-size: 0.85em; font-weight: 600; opacity: 0.85; }
+.card-count {
+  font-size: 0.7em; font-weight: 700; border-radius: 999px; padding: 0 6px;
+  background: alpha(#e5a50a, 0.2); color: #f0b43c;
+}
+.card-note { font-size: 0.78em; opacity: 0.45; }
+.card-empty { opacity: 0.45; padding: 6px 0; }
+.card-subhead { font-size: 0.72em; font-weight: 600; opacity: 0.5; margin-top: 6px; }
+.subhead-warn { color: #f0b43c; opacity: 1; }
+.card-meta { font-size: 0.82em; opacity: 0.5; }
+.mono { font-family: monospace; font-size: 0.78em; opacity: 0.5; }
+
+.dash-row { padding: 6px 6px; margin: 0 -6px; border-radius: 8px; min-height: 0; }
+button.dash-row { font-weight: normal; }
+button.dash-row:hover { background: alpha(white, 0.05); }
+
+.dash-big { font-size: 2.1em; font-weight: 700; letter-spacing: -0.02em; }
+.lines-add { color: #3ccf8e; font-family: monospace; font-size: 0.8em; }
+.lines-del { color: #f66151; font-family: monospace; font-size: 0.8em; }
+.day-letter { font-size: 0.68em; opacity: 0.4; margin-top: 2px; }
+
+levelbar.activity-meter trough { min-height: 6px; background: alpha(white, 0.06); border-radius: 99px; padding: 0; border: none; }
+levelbar.activity-meter block.filled { background: #3b6fe0; border-radius: 99px; border: none; }
+levelbar.activity-meter block.empty { background: transparent; border: none; }
+
+.pr-icon { color: #3ccf8e; }
+.ci-fail { color: #f66151; }
+.pill-button { min-height: 22px; padding: 0 10px; border-radius: 999px; font-size: 0.8em; font-weight: 700;
+  background: alpha(@accent_bg_color, 0.25); color: @accent_color; }
+
+/* Repo panel briefly highlighted after jumping to it from Home or the sidebar. */
+.pane { transition: box-shadow 400ms ease-out; }
+.pane.flash { box-shadow: 0 0 0 2px @accent_bg_color; }
+
+
+/* -- commit box, identity, changes ----------------------------------------------- */
+.commit-message-frame { background: alpha(white, 0.05); border-radius: 8px; border: 1px solid transparent; }
+.commit-message-frame:focus-within { border-color: alpha(@accent_bg_color, 0.8); }
+textview.commit-message, textview.commit-message text { background: transparent; }
+.commit-placeholder { opacity: 0.4; }
+.identity { font-size: 0.75em; opacity: 0.45; margin-left: 2px; }
+.identity.identity-missing { color: #f0b43c; opacity: 1; font-weight: 600; }
+.identity-fix { font-size: 0.78em; min-height: 20px; padding: 0 8px; }
+.stash-pill {
+  font-size: 0.7em; font-weight: 700; border-radius: 999px; padding: 0 7px;
+  background: alpha(#c061cb, 0.2); color: #dc8add;
+}
+list.changes > row .row-discard { opacity: 0; transition: opacity 120ms; }
+list.changes > row:hover .row-discard, list.changes > row:focus-within .row-discard { opacity: 0.8; }
+.branch-button { padding: 0; min-height: 0; background: none; box-shadow: none; }
+.branch-button > button, menubutton.branch-button > button { padding: 0; min-height: 0; background: none; }
+.side-pin, .pinned { color: #f0b43c; }
+
+/* -- hunk staging window --------------------------------------------------------- */
+.hunk-card { background: @card_bg_color; border: 1px solid @rd_border; border-radius: 10px; }
+.hunk-card textview, .hunk-card textview text { background: transparent; }
+.hunk-head { padding: 6px 8px 6px 12px; border-bottom: 1px solid @rd_border; }
+.mono-strong { font-family: monospace; font-size: 0.85em; color: #7ea2ff; }
+.destructive-pill { background: alpha(#e01b24, 0.2); color: #ff7b72; }
