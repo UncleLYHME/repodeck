@@ -74,12 +74,16 @@ class Dashboard(Gtk.ScrolledWindow):
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, valign=Gtk.Align.END,
                       halign=Gtk.Align.CENTER, margin_bottom=6)
+        # A translucent strip keeps the text readable over any sky, day or night.
+        strip = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, halign=Gtk.Align.CENTER)
+        strip.add_css_class("hero-strip")
         self.greeting = label("", "hero-greeting", xalign=0.5)
-        box.append(self.greeting)
+        strip.append(self.greeting)
         self._update_greeting()
-        box.append(label("What's happening across your projects?", "hero-title", xalign=0.5))
+        strip.append(label("What's happening across your projects?", "hero-title", xalign=0.5))
         self.hero_sub = label("", "hero-sub", xalign=0.5)
-        box.append(self.hero_sub)
+        strip.append(self.hero_sub)
+        box.append(strip)
 
         composer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, width_request=460)
         composer.add_css_class("hero-input")
