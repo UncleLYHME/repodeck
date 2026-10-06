@@ -11,7 +11,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from gi.repository import Adw, Gdk, GLib, Graphene, Gsk, Gtk
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, GLib, Graphene, Gsk, Gtk  # noqa: E402
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "hero"
 ART_W, ART_H = 480, 118

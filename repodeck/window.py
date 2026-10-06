@@ -11,6 +11,8 @@ from .dashboard import Dashboard
 from . import autostart
 from .group import RepoGroup, plural
 from .project import ProjectPage
+from . import updatepopup
+from .updatepopup import UpdatePopup
 from .sidebar import Sidebar
 from .watch import Throttle
 
@@ -82,11 +84,14 @@ class DeckWindow(Adw.ApplicationWindow):
         header.pack_end(self.fold_all)
 
         self.toasts = Adw.ToastOverlay(child=self.pages)
+        self.update_popup = UpdatePopup(self)
+        floating = Gtk.Overlay(child=self.toasts)
+        floating.add_overlay(self.update_popup)
         drop = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
         drop.connect("drop", lambda _t, files, _x, _y: self.add_folders(
             [f.get_path() for f in files.get_files() if f.get_path() and Path(f.get_path()).is_dir()]) or True)
         self.toasts.add_controller(drop)
-        content = Adw.ToolbarView(content=self.toasts)
+        content = Adw.ToolbarView(content=floating)
         content.add_top_bar(header)
 
         self.sidebar = Sidebar(self.show_page, self.show_project)
@@ -299,6 +304,9 @@ class DeckWindow(Adw.ApplicationWindow):
         for g in self.groups:
             for pane in g.panes:
                 pane.refresh()
+
+    def restart_for_update(self, update):
+        updatepopup.restart(self, update)
 
     def refresh_now(self):
         """F5 / the refresh button: everything, including GitHub data that's normally reused for a while."""

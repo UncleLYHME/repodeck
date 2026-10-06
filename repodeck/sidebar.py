@@ -4,6 +4,7 @@ from pathlib import Path
 
 from gi.repository import Gtk, Pango
 
+from . import __version__
 from .widgets import label
 
 
@@ -37,6 +38,7 @@ class Sidebar(Gtk.Box):
         self.projects.add_css_class("navigation-sidebar")
         self.projects.connect("row-activated", lambda _l, row: self.on_project(row.path))
         self.append(Gtk.ScrolledWindow(child=self.projects, vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        self.append(label(f"RepoDeck {__version__}", "side-version"))
 
     def select(self, page, path=None):
         """Highlight Home/Projects, or (page == "project") the project's row."""

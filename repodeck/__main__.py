@@ -1,5 +1,6 @@
 """Entry point: `python3 -m repodeck [FOLDER...]`."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -12,7 +13,8 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 from . import cache  # noqa: E402
 from .window import DeckWindow  # noqa: E402
 
-APP_ID = "dev.foundry.RepoDeck"
+# Overridable so a second copy (e.g. for QA) doesn't hand over to an already-running RepoDeck.
+APP_ID = os.environ.get("REPODECK_APP_ID", "dev.foundry.RepoDeck")
 
 
 class App(Adw.Application):

@@ -73,6 +73,15 @@ Auto-pull can be switched off from the main menu (☰).
 
 When the window is in the background, auto-pulls, newly fetched commits, new CI failures and new review requests arrive as desktop notifications (switch off in ☰). ☰ → **Start on Login** adds an XDG autostart entry.
 
+## Updates
+
+RepoDeck runs straight from its git checkout. A release is a commit that raises `__version__` in `repodeck/__init__.py`, with its notes under a `## <version> — <date>` heading in `CHANGELOG.md`.
+
+- When the checkout already holds a newer version (you pulled, or RepoDeck auto-pulled its own repo), a popup appears at once: **RepoDeck x.y.z is ready** → **Restart Now**.
+- Every 30 minutes RepoDeck quietly fetches its own repo; a newer version upstream shows **RepoDeck x.y.z is available** → **Restart to Update**, which fast-forwards the checkout first. If that isn't possible (local commits, or uncommitted edits to files the update changes) nothing is touched and the popup says why.
+- Restarting saves state, waits for the old process to exit and starts the new version. You're asked first if any panel has a typed commit message. **Later** hides the popup for that version until the next launch.
+- `REPODECK_UPDATE_INTERVAL` (seconds) changes the check interval; `REPODECK_APP_ID` runs a separate instance alongside your usual one.
+
 ## Caching
 
 Results are cached in memory and in `~/.cache/repodeck/cache.json`, so the app starts with data on screen:
