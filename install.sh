@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install RepoDeck for the current user: `repodeck` command + app-menu entry.
+# Install RepoDeck for the current user: dependencies and a first build, the `repodeck` command,
+# and an app-menu entry. Safe to run again.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -7,9 +8,11 @@ bin="$HOME/.local/bin"
 apps="$HOME/.local/share/applications"
 mkdir -p "$bin" "$apps"
 
+"$here/bin/repodeck" --prepare
+
 cat > "$bin/repodeck" <<EOF
-#!/usr/bin/env bash
-PYTHONPATH="$here\${PYTHONPATH:+:\$PYTHONPATH}" exec python3 -m repodeck "\$@"
+#!/bin/sh
+exec "$here/bin/repodeck" "\$@"
 EOF
 chmod +x "$bin/repodeck"
 

@@ -1,0 +1,50 @@
+{
+  "name": "repodeck",
+  "productName": "RepoDeck",
+  "version": "2.0.0",
+  "description": "Bird's-eye source control for many git repositories",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Uncle LYHME",
+  "main": "out/main/index.js",
+  "desktopName": "dev.foundry.RepoDeck.desktop",
+  "scripts": {
+    "dev": "electron-vite dev --noSandbox",
+    "start": "electron-vite preview --noSandbox",
+    "build": "electron-vite build",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "vitest run",
+    "test:py": "python3 -m unittest discover -s tests -t .",
+    "e2e": "electron-vite build && xvfb-run -a playwright test",
+    "check": "pnpm typecheck && pnpm test"
+  },
+  "packageManager": "pnpm@11.1.1",
+  "dependencies": {
+    "@base-ui/react": "1.8.0",
+    "@codemirror/language": "6.12.4",
+    "@codemirror/language-data": "6.5.2",
+    "@codemirror/merge": "6.12.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.13",
+    "@lezer/highlight": "1.2.5",
+    "@tanstack/react-virtual": "3.14.13",
+    "lucide-react": "1.52.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "44.6.0",
+    "electron-vite": "5.0.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "7.3.6",
+    "vitest": "5.0.3"
+  }
+}

@@ -1,0 +1,88 @@
+#!/bin/sh
+# Start RepoDeck from this checkout: install dependencies and rebuild when the checkout changed,
+# then run Electron. Folders given as arguments are added to the deck.
+#   repodeck [FOLDER...]    start (or hand the folders to the running RepoDeck)
+#   repodeck --prepare      install and build only
+set -eu
+
+prepare=0
+folders=""
+for arg in "$@"; do
+  case "$arg" in
+    --prepare) prepare=1 ;;
+    *) if [ -d "$arg" ]; then folders="$folders
+$(cd "$arg" && pwd -P)"; fi ;;
+  esac
+done
+
+root=$(cd "$(dirname "$0")/.." && pwd -P)
+cd "$root"
+state=${XDG_STATE_HOME:-$HOME/.local/state}/repodeck${REPODECK_PROFILE:+-$REPODECK_PROFILE}
+config=${XDG_CONFIG_HOME:-$HOME/.config}/repodeck${REPODECK_PROFILE:+-$REPODECK_PROFILE}
+mkdir -p "$state"
+log="$state/launcher.log"
+
+say() {
+  echo "$(date '+%F %T') $*" >>"$log"
+  echo "repodeck: $*" >&2
+}
+notify() {
+  if command -v notify-send >/dev/null 2>&1; then notify-send -a RepoDeck "RepoDeck" "$1" || true; fi
+}
+fail() {
+  say "$1"
+  notify "RepoDeck couldn't start: $1"
+  exit 1
+}
+
+# Dependencies: (re)install when the lockfile changed.
+lock=$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)
+if [ ! -d node_modules ] || [ "$(cat node_modules/.repodeck-lock 2>/dev/null || true)" != "$lock" ]; then
+  command -v pnpm >/dev/null 2>&1 || fail "pnpm is not installed (https://pnpm.io/installation)"
+  say "installing dependencies"
+  pnpm install --frozen-lockfile >>"$log" 2>&1 || fail "pnpm install failed; see $log"
+  echo "$lock" >node_modules/.repodeck-lock
+fi
+
+# A running RepoDeck still loads files from out/ (code-split views), so never swap it underneath.
+running() {
+  target=$(readlink "$config/electron/SingletonLock" 2>/dev/null) || return 1
+  kill -0 "${target##*-}" 2>/dev/null
+}
+
+# Build: when the sources differ from what out/ was built from. A new build goes to out.next and
+# is swapped in only when it succeeded, so a broken checkout never replaces a working app.
+stamp=$( (git rev-parse HEAD 2>/dev/null || echo no-git
+  git diff HEAD -- src data electron.vite.config.ts package.json pnpm-lock.yaml 2>/dev/null
+  git ls-files --others --exclude-standard -- src data 2>/dev/null) | sha256sum | cut -d' ' -f1)
+if [ "$(cat out/.stamp 2>/dev/null || true)" != "$stamp" ] && ! running; then
+  say "building"
+  if REPODECK_OUT=out.next node_modules/.bin/electron-vite build >>"$log" 2>&1; then
+    echo "$stamp" >out.next/.stamp
+    if [ -d out ]; then
+      mv out out.swap && mv out.next out && mv out.swap out.next # the old build is emptied by the next one
+    else
+      mv out.next out
+    fi
+  elif [ -f out/main/index.js ]; then
+    say "build failed; starting the previous build"
+    notify "This RepoDeck update didn't build, so the previous version is starting. Details: $log"
+  else
+    fail "the build failed; see $log"
+  fi
+fi
+
+[ "$prepare" = 1 ] && exit 0
+
+# Chromium refuses to run as root unless its sandbox is off.
+sandbox=""
+[ "$(id -u)" = 0 ] && sandbox="--no-sandbox"
+
+# Folder paths may contain spaces: pass them one per argument.
+set -- "$root" $sandbox
+old_ifs=$IFS
+IFS='
+'
+for f in $folders; do set -- "$@" "$f"; done
+IFS=$old_ifs
+exec "$root/node_modules/.bin/electron" "$@"
