@@ -6,6 +6,7 @@ import type { Profile } from '@shared/types'
 import { basename } from '@shared/time'
 import { api } from '../bridge'
 import { runOp, useStore } from '../store'
+import { Picker } from '../ui/select'
 
 export function IdentityDialog() {
   const repo = useStore((s) => s.identityFor)
@@ -52,17 +53,15 @@ export function IdentityDialog() {
             void save()
           }}>
             {profiles.length > 0 && (
-              <select className="field" value={choice} aria-label="Profile" onChange={(e) => {
-                const i = Number(e.target.value)
-                setChoice(i)
-                if (i >= 0) {
-                  setName(profiles[i].name)
-                  setEmail(profiles[i].email)
-                }
-              }}>
-                {profiles.map((p, i) => <option key={i} value={i}>{p.label}: {p.email}</option>)}
-                <option value={-1}>Custom</option>
-              </select>
+              <Picker label="Profile" value={choice} className="w-full"
+                options={[...profiles.map((p, i) => [i, `${p.label}: ${p.email}`] as const), [-1, 'Custom'] as const]}
+                onChange={(i) => {
+                  setChoice(i)
+                  if (i >= 0) {
+                    setName(profiles[i].name)
+                    setEmail(profiles[i].email)
+                  }
+                }} />
             )}
             <input className="field" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
             <input className="field" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Email" />
