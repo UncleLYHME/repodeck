@@ -5,7 +5,7 @@ Commits are the unit, not version numbers (every push to main is a release):
   ready      the checkout has commits the running build doesn't: bin/repodeck rebuilds on the next start
 */
 
-import { noteLines } from '../shared/release'
+import { noteLines, releaseOf } from '../shared/release'
 import { exec, run } from './git/run'
 import { backgroundFetch, fastForward } from './git/sync'
 import { toplevel } from './git/status'
@@ -34,9 +34,14 @@ async function appChanged(appDir: string, a: string, b: string): Promise<boolean
   return r.code === 1
 }
 
+/** "2.2.4 · 1a2b3c4": the release that commit is (or becomes), and the commit. */
 async function label(appDir: string, rev: string): Promise<string> {
-  const pkg = packageVersion(await run(appDir, ['show', `${rev}:package.json`], { check: false }))
-  return `${pkg ?? '?'} · ${rev.slice(0, 7)}`
+  const [pkg, tags, latest] = await Promise.all([
+    run(appDir, ['show', `${rev}:package.json`], { check: false }),
+    run(appDir, ['tag', '--points-at', rev, '--list', 'v[0-9]*'], { check: false }),
+    run(appDir, ['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', rev], { check: false }),
+  ])
+  return `${releaseOf(packageVersion(pkg) ?? '0.0.0', tags.split('\n'), latest.trim())} · ${rev.slice(0, 7)}`
 }
 
 async function notes(appDir: string, from: string, to: string): Promise<string[]> {

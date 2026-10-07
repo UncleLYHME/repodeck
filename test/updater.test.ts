@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { run } from '../src/core/git/run'
 import { download, inspect } from '../src/core/update'
-import { changelogSection, nextVersion, noteLines, notesFromCommits } from '../src/shared/release'
+import { changelogSection, nextVersion, noteLines, notesFromCommits, releaseOf } from '../src/shared/release'
 import { tempDir } from './helpers'
 
 describe('release versions and notes', () => {
@@ -12,6 +12,14 @@ describe('release versions and notes', () => {
     expect(nextVersion('2.1.0', 'v2.1.7')).toBe('2.1.8')
     expect(nextVersion('2.2.0', 'v2.1.7')).toBe('2.2.0')
     expect(nextVersion('3.0.0', null)).toBe('3.0.0')
+  })
+
+  it("names a checkout's commit after its release, or the release it will become", () => {
+    expect(releaseOf('2.2.0', ['v2.2.3'], 'v2.2.3')).toBe('2.2.3') // released: its own tag
+    expect(releaseOf('2.2.0', ['v2.2.3', 'v2.2.10'], 'v2.2.10')).toBe('2.2.10')
+    expect(releaseOf('2.2.0', [''], 'v2.2.3')).toBe('2.2.4') // pushed, not released yet
+    expect(releaseOf('2.3.0', [''], 'v2.2.9')).toBe('2.3.0') // package.json raised for a bigger release
+    expect(releaseOf('2.2.0', [''], '')).toBe('2.2.0') // no tags fetched
   })
 
   it('turns commit subjects into notes, user-facing changes only', () => {

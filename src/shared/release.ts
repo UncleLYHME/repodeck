@@ -20,6 +20,15 @@ export function nextVersion(packageVersion: string, latestRelease: string | null
   return [latest[0], latest[1], latest[2] + 1].join('.')
 }
 
+/**
+ * The release a commit is (or will be): its own release tag, or else the version the release
+ * workflow gives it after the latest release before it. Checkouts use this to name themselves.
+ */
+export function releaseOf(packageVersion: string, tagsAtCommit: string[], latestBefore: string | null | undefined): string {
+  const own = tagsAtCommit.map(parse).filter((v) => cmp(v, [0, 0, 0]) > 0).sort(cmp).pop()
+  return own ? own.join('.') : nextVersion(packageVersion, latestBefore)
+}
+
 const SKIP = /^(ci|test|tests|docs|chore|build|style)(\(.*\))?!?:/i
 const KIND = /^(\w+)(\(.*\))?!?:\s*/
 

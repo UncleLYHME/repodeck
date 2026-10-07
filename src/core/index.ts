@@ -18,7 +18,8 @@ interface ParentPort {
 
 const parent = (process as unknown as { parentPort: ParentPort }).parentPort
 const appDir = process.env.REPODECK_APP_DIR || process.cwd()
-const version = process.env.REPODECK_VERSION || '0.0.0'
+// Installed copies carry their release in package.json; a checkout names the release it was built from.
+const version = (process.env.REPODECK_PACKAGED ? process.env.REPODECK_VERSION : __BUILD_VERSION__) || process.env.REPODECK_VERSION || '0.0.0'
 
 // -- main <-> core ----------------------------------------------------------------------------
 
