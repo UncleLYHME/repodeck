@@ -8,8 +8,10 @@ import { ago, basename, plural } from '@shared/time'
 import { api, host } from '../bridge'
 import { showAlert, toast, updateAction, useStore } from '../store'
 import { Switch } from '../ui/bits'
+import { Picker } from '../ui/select'
 
 const FETCH_MINUTES = [2, 5, 10, 15, 30, 60]
+const DIFF_LAYOUTS = [['side', 'Side by Side'], ['unified', 'Unified']] as const
 const PAGES = [['general', 'General', Settings2], ['sync', 'Sync', RefreshCw], ['data', 'Data', Database]] as const
 type PageKey = (typeof PAGES)[number][0]
 
@@ -135,11 +137,7 @@ export function Preferences() {
                       <Switch label="Animated Banner" checked={s.bannerMotion} onChange={(v) => set('bannerMotion', v)} />
                     </Row>
                     <Row title="Comparing Files" subtitle="How a file's changes open">
-                      <select className="field w-[150px]" value={s.diffLayout} aria-label="Comparing Files"
-                        onChange={(e) => set('diffLayout', e.target.value as Settings['diffLayout'])}>
-                        <option value="side">Side by Side</option>
-                        <option value="unified">Unified</option>
-                      </select>
+                      <Picker label="Comparing Files" value={s.diffLayout} options={DIFF_LAYOUTS} onChange={(v) => set('diffLayout', v)} />
                     </Row>
                   </Group>
                 </>
@@ -151,10 +149,8 @@ export function Preferences() {
                       <Switch label="Fetch Automatically" checked={s.autoFetch} onChange={(v) => set('autoFetch', v)} />
                     </Row>
                     <Row title="Fetch Every">
-                      <select className="field w-[150px]" value={FETCH_MINUTES.includes(s.fetchMinutes) ? s.fetchMinutes : 5} aria-label="Fetch Every"
-                        onChange={(e) => set('fetchMinutes', Number(e.target.value))}>
-                        {FETCH_MINUTES.map((m) => <option key={m} value={m}>{m} minutes</option>)}
-                      </select>
+                      <Picker label="Fetch Every" value={FETCH_MINUTES.includes(s.fetchMinutes) ? s.fetchMinutes : 5}
+                        options={FETCH_MINUTES.map((m) => [m, `${m} minutes`] as const)} onChange={(v) => set('fetchMinutes', v)} />
                     </Row>
                     <Row title="Pull Automatically" subtitle="Fast-forward only; your uncommitted changes are always kept">
                       <Switch label="Pull Automatically" checked={s.autoPull} onChange={(v) => set('autoPull', v)} />
