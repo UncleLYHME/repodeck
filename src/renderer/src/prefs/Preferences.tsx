@@ -3,15 +3,41 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { Database, RefreshCw, Settings2, X } from 'lucide-react'
-import type { DataInfo, Settings } from '@shared/types'
-import { basename, plural } from '@shared/time'
+import type { DataInfo, Settings, UpdateStatus } from '@shared/types'
+import { ago, basename, plural } from '@shared/time'
 import { api, host } from '../bridge'
-import { showAlert, toast, useStore } from '../store'
+import { showAlert, toast, updateAction, useStore } from '../store'
 import { Switch } from '../ui/bits'
 
 const FETCH_MINUTES = [2, 5, 10, 15, 30, 60]
 const PAGES = [['general', 'General', Settings2], ['sync', 'Sync', RefreshCw], ['data', 'Data', Database]] as const
 type PageKey = (typeof PAGES)[number][0]
+
+/** One line on where RepoDeck's own update stands. */
+export function updateText(u: UpdateStatus | null): string {
+  if (!u) return 'Not checked yet'
+  const checked = u.checkedAt ? (ago(u.checkedAt / 1000) === 'now' ? 'checked just now' : `checked ${ago(u.checkedAt / 1000)} ago`) : ''
+  switch (u.phase) {
+    case 'checking': return 'Checking for updates…'
+    case 'up-to-date': return `Up to date${checked ? ` · ${checked}` : ''}`
+    case 'available': return `${u.version} is available`
+    case 'downloading': return `Downloading ${u.version} · ${u.progress}%`
+    case 'ready': return u.source === 'checkout' ? `${u.version} starts the next time you open RepoDeck` : `${u.version} installs when you quit RepoDeck`
+    case 'error': return `Couldn't check for updates: ${u.error ?? 'unknown error'}`
+    default: return 'Not checked yet'
+  }
+}
+
+function UpdateButton({ update }: { update: UpdateStatus | null }) {
+  const phase = update?.phase
+  if (phase === 'available') return <button className="btn btn-primary" onClick={() => void updateAction('download')}>{update!.manual ? 'Download' : 'Update'}</button>
+  if (phase === 'ready') return <button className="btn btn-primary" onClick={() => void updateAction('restart')}>Restart Now</button>
+  return (
+    <button className="btn" disabled={phase === 'checking' || phase === 'downloading'} onClick={() => void updateAction('check', true)}>
+      {phase === 'checking' && <span className="spinner" />} Check Now
+    </button>
+  )
+}
 
 const size = (n: number) => (!n ? 'empty' : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
 
@@ -42,6 +68,9 @@ function Row({ title, subtitle, children }: { title: string; subtitle?: string; 
 export function Preferences() {
   const open = useStore((s) => s.prefsOpen)
   const deck = useStore((s) => s.deck)
+  const update = useStore((s) => s.update)
+  const version = useStore((s) => s.version)
+  const packaged = useStore((s) => s.packaged)
   const [page, setPage] = useState<PageKey>('general')
   const [info, setInfo] = useState<DataInfo | null>(null)
 
@@ -85,8 +114,20 @@ export function Preferences() {
                     <Row title="Desktop Notifications" subtitle="When RepoDeck is in the background: pulls, CI failures, reviews">
                       <Switch label="Desktop Notifications" checked={s.notify} onChange={(v) => set('notify', v)} />
                     </Row>
-                    <Row title="Check for RepoDeck Updates" subtitle="Look for a new version on GitHub every 30 minutes">
-                      <Switch label="Check for RepoDeck Updates" checked={s.updateChecks} onChange={(v) => set('updateChecks', v)} />
+                  </Group>
+                  <Group title="Updates">
+                    <Row title={`RepoDeck ${version}`} subtitle={updateText(update)}>
+                      <UpdateButton update={update} />
+                    </Row>
+                    <Row title="Check for Updates Automatically" subtitle="Every 15 minutes, and shortly after RepoDeck starts">
+                      <Switch label="Check for Updates Automatically" checked={s.updateChecks} onChange={(v) => set('updateChecks', v)} />
+                    </Row>
+                    <Row title="Install Updates Automatically"
+                      subtitle={update?.manual ? 'Not available for this install: updates open the download page'
+                        : packaged ? 'Download new versions in the background and install them when you quit'
+                        : 'Pull new versions in the background; they start the next time you open RepoDeck'}>
+                      <Switch label="Install Updates Automatically" checked={s.autoUpdate && !update?.manual} disabled={update?.manual}
+                        onChange={(v) => set('autoUpdate', v)} />
                     </Row>
                   </Group>
                   <Group title="Appearance">

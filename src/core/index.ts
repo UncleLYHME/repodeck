@@ -7,7 +7,7 @@ import { Endpoint } from '../shared/rpc'
 import { cache } from './cache'
 import { activity } from './activity'
 import { Deck } from './deck'
-import { GithubWatch, UpdateWatch } from './services'
+import { CheckoutUpdates, GithubWatch } from './services'
 import { handlers } from './api'
 import { useLoginItems } from './platform/autostart'
 
@@ -43,11 +43,15 @@ const host = {
   toast: (message: string) => broadcast('toast', message),
   announce: (message: string, body?: string, key?: string, uri?: string) =>
     main.emit('announce', { message, body, key, uri, notify: deck.settings.notify }),
+  settingsChanged: (settings: Deck['settings']) => {
+    main.emit('settings', settings)
+    if (settings.autoUpdate && updates?.status.phase === 'available') void updates.download().catch(() => {})
+  },
 }
 const deck = new Deck(host, appDir)
 const github = new GithubWatch(deck, host)
 // Installed copies update from GitHub Releases (main); a checkout updates itself through git.
-const updates = process.env.REPODECK_PACKAGED ? null : new UpdateWatch(deck, host, version)
+const updates = process.env.REPODECK_PACKAGED ? null : new CheckoutUpdates(deck, host, __BUILD_COMMIT__)
 if (process.platform !== 'linux') {
   useLoginItems({ get: () => main.call<boolean>('loginItem', {}), set: (on) => main.call<boolean>('loginItem', { on }) })
 }

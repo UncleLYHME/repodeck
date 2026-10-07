@@ -8,11 +8,12 @@ import {
   app, BrowserWindow, dialog, ipcMain, MessageChannelMain, Notification, shell, utilityProcess,
   type IpcMainInvokeEvent, type UtilityProcess,
 } from 'electron'
+import type { UpdateAction } from '../shared/types'
 import { Endpoint } from '../shared/rpc'
 import { loadBounds, saveBounds } from './bounds'
 import { configDir, dirsEnv } from './dirs'
 import { loginItem, loginPath, openInCode, setMenu } from './platform'
-import { Updater } from './updater'
+import { Updater, type UpdaterSettings } from './updater'
 
 const APP_DIR = app.getAppPath() // the checkout (package.json, bin/, data/), or app.asar when installed
 const DEV_URL = process.env.ELECTRON_RENDERER_URL
@@ -31,13 +32,14 @@ let core: UtilityProcess | null = null
 let coreRpc: Endpoint | null = null
 let quitting = false
 const updater = new Updater(
-  (update) => {
-    win?.webContents.send('main-event', { name: 'update', data: update })
-    const title = update.source === 'download' ? `RepoDeck ${update.version} is ready` : `RepoDeck ${update.version} is available`
+  (status, title) => {
+    win?.webContents.send('main-event', { name: 'update', data: status })
+    if (!title) return
     void coreRpc?.call('log', { message: title }).catch(() => {})
-    announce({ message: title, body: 'Open RepoDeck to update.', key: 'update', notify: true })
+    const body = status.phase === 'ready' ? 'It installs when you quit RepoDeck.' : 'Open RepoDeck to update.'
+    announce({ message: title, body, key: 'update', notify: true })
   },
-  async () => ((await coreRpc?.call<{ updateChecks: boolean }>('settings', null, 5000)) ?? { updateChecks: true }).updateChecks,
+  async () => (await coreRpc?.call<UpdaterSettings>('settings', null, 5000)) ?? { updateChecks: true, autoUpdate: false },
 )
 
 const foldersIn = (argv: string[]) => argv.filter((a) => isAbsolute(a) && isDir(a) && a !== APP_DIR)
@@ -73,6 +75,9 @@ function startCore(): void {
     },
   })
   coreRpc.on('announce', (data) => announce(data as Announcement))
+  coreRpc.on('settings', (data) => {
+    if ((data as UpdaterSettings).autoUpdate) void updater.download() // switched on with an update waiting
+  })
   proc.on('exit', () => {
     coreRpc?.close('core stopped')
     if (quitting) return
@@ -158,10 +163,7 @@ function createWindow(): void {
   })
   if (bounds.maximized) win.maximize()
   win.once('ready-to-show', () => win?.show())
-  win.webContents.on('did-finish-load', () => {
-    connect()
-    if (updater.found) win?.webContents.send('main-event', { name: 'update', data: updater.found })
-  })
+  win.webContents.on('did-finish-load', connect)
   if (process.env.REPODECK_DEBUG) {
     win.webContents.on('console-message', (e) => console.log(`[renderer ${e.level}] ${e.message} (${e.sourceId}:${e.lineNumber})`))
     win.webContents.on('render-process-gone', (_e, d) => console.log('[renderer gone]', d.reason))
@@ -208,12 +210,16 @@ function hostHandlers(): void {
     if (!isAbsolute(path) || !isDir(path)) throw new Error(`Not a folder: ${path}`)
     openInCode(path, file)
   })
-  handle('host:installUpdate', async () => {
-    if (updater.found?.source === 'download') {
+  handle('host:appInfo', () => ({ packaged: app.isPackaged, version: app.getVersion(), update: app.isPackaged ? updater.status : null }))
+  handle('host:update', async (action: UpdateAction) => {
+    if (action === 'check') return updater.check(true)
+    if (action === 'download') return updater.download()
+    if (updater.status.phase === 'ready') {
       quitting = true // the core is stopped here, so the quit that installs isn't held up
       await coreRpc?.call('shutdown', null, 1500).catch(() => {})
+      updater.restart()
     }
-    updater.install()
+    return updater.status
   })
   handle('host:chooseFolders', async () => {
     const result = await dialog.showOpenDialog(win!, {

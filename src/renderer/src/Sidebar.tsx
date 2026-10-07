@@ -3,7 +3,7 @@
 import { History, House, LayoutGrid } from 'lucide-react'
 import type { RepoState } from '@shared/types'
 import { basename } from '@shared/time'
-import { showPage, showProject, sortedRepos, useStore, type Page } from './store'
+import { showPage, showProject, showUpdate, sortedRepos, useStore, type Page } from './store'
 import { Bump } from './ui/motion'
 
 function repoBadge(r: RepoState | undefined): { dot: string; badge: string; state: string } {
@@ -34,6 +34,8 @@ export function Sidebar() {
   const repos = useStore((s) => s.repos)
   const version = useStore((s) => s.version)
   const problems = useStore((s) => s.unseenProblems)
+  const update = useStore((s) => s.update)
+  const updateWaiting = update?.version && ['available', 'downloading', 'ready'].includes(update.phase)
   const current = useStore((s) => (s.page === 'project' ? s.projectPath : null))
   const paths = sortedRepos(deck?.groups.flatMap((g) => g.repos) ?? [], deck?.pinned ?? [])
   const pinned = new Set(deck?.pinned ?? [])
@@ -70,7 +72,15 @@ export function Sidebar() {
           )
         })}
       </ul>
-      <div className="mx-[18px] mt-2 mb-2.5 text-[11px] text-white/35">RepoDeck {version}</div>
+      <div className="mx-[18px] mt-2 mb-2.5 flex items-center gap-2 text-[11px] text-white/35">
+        RepoDeck {version}
+        {updateWaiting && (
+          <button className="pop-in rounded-full bg-accent/25 px-2 py-px font-bold text-accent-fg hover:bg-accent/35" onClick={showUpdate}
+            title={`RepoDeck ${update.version}: ${update.phase === 'ready' ? 'ready to install' : update.phase === 'downloading' ? 'downloading' : 'available'}`}>
+            {update.phase === 'ready' ? 'Restart to update' : 'Update'}
+          </button>
+        )}
+      </div>
     </aside>
   )
 }

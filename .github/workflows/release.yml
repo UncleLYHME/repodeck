@@ -1,30 +1,71 @@
 name: Release
 
-# Push a tag like v2.1.0 (matching package.json) to build Linux, macOS and Windows installers and
-# publish them as a GitHub release. Installed copies update from the latest release.
+# Every push to main that passes CI and changes the app becomes a release: the next patch version
+# (or package.json's version if you raised it), notes from the commits (or that version's
+# CHANGELOG section), and installers for Linux, macOS and Windows. Installed copies see it within
+# 15 minutes and offer the update.
 on:
-  push:
-    tags: ['v*']
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Release even if the app didn't change since the last release
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   draft:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+      sha: ${{ steps.plan.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
-      - name: Check the tag matches package.json
-        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      - name: Draft the release with its changelog
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Decide the version and draft the release
+        id: plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE: ${{ inputs.force }}
         run: |
-          node scripts/release-notes.mjs "$GITHUB_REF_NAME" > notes.md
-          gh release create "$GITHUB_REF_NAME" --draft --title "RepoDeck ${GITHUB_REF_NAME#v}" --notes-file notes.md
+          sha=$(git rev-parse HEAD)
+          latest=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
+          if [ -n "$latest" ] && [ "$FORCE" != "true" ] && git diff --quiet "$latest" HEAD -- \
+              src data build package.json pnpm-lock.yaml electron-builder.yml electron.vite.config.ts; then
+            echo "The app hasn't changed since $latest; nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version=$(node --no-warnings scripts/next-version.mjs "${latest:-v0.0.0}")
+          node --no-warnings scripts/release-notes.mjs "$version" "$latest" > notes.md
+          cat notes.md
+          gh release create "v$version" --draft --target "$sha" --title "RepoDeck $version" --notes-file notes.md
+          {
+            echo "release=true"
+            echo "version=$version"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     needs: draft
+    if: needs.draft.outputs.release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -32,6 +73,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.draft.outputs.sha }}
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -43,13 +86,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false' # macOS builds aren't signed yet
-        run: pnpm exec electron-builder --publish always
+        run: pnpm exec electron-builder --publish always -c.extraMetadata.version=${{ needs.draft.outputs.version }}
 
   publish:
-    needs: build
+    needs: [draft, build]
     runs-on: ubuntu-latest
     steps:
-      - name: Publish the release
+      - name: Publish the release (installed copies pick it up from here)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        run: gh release edit "v${{ needs.draft.outputs.version }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest

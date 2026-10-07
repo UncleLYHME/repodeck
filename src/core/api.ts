@@ -3,7 +3,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { statSync } from 'node:fs'
-import type { CommitFile, CompareTexts, DataInfo, HunkSet, Settings, Snapshot } from '../shared/types'
+import type { CommitFile, CompareTexts, DataInfo, HunkSet, Settings, Snapshot, UpdateAction } from '../shared/types'
 import { plural } from '../shared/time'
 import { run } from './git/run'
 import { LOG_LIMIT, commitFiles, show, status as gitStatus } from './git/status'
@@ -15,10 +15,9 @@ import { dashboardActivity, services } from './stats/dashboard'
 import { project, projectGithub, projectGithubCached } from './stats/project'
 import { activity } from './activity'
 import { cache } from './cache'
-import { apply } from './update'
 import { configDir } from './paths'
 import type { Deck } from './deck'
-import type { GithubWatch, UpdateWatch } from './services'
+import type { CheckoutUpdates, GithubWatch } from './services'
 
 export interface Host {
   trash(path: string): Promise<void>
@@ -46,7 +45,7 @@ const size = (p: string) => {
 /** A file-name fragment as a case-insensitive glob that matches it literally. */
 export const globLiteral = (q: string): string => q.replace(/[*?[\]\\]/g, (c) => `\\${c}`)
 
-export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch | null, host: Host, version: string) {
+export function handlers(deck: Deck, github: GithubWatch, updates: CheckoutUpdates | null, host: Host, version: string) {
   const capabilities = { code: onPath('code'), platform: process.platform }
   const repo = (path: string) => deck.repo(path)
   const op = (path: string, msg: string, fn: (st: Awaited<ReturnType<typeof gitStatus>>) => Promise<unknown>) => repo(path).op(msg, fn)
@@ -54,7 +53,7 @@ export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch |
   return {
     snapshot: (): Snapshot => ({
       deck: deck.state(), repos: deck.repoStates(), histories: deck.histories(), activity: activity().entries,
-      version, update: updates?.found ?? null, capabilities, configDir: configDir(),
+      version, update: updates?.status ?? null, capabilities, configDir: configDir(),
     }),
 
     // -- deck ------------------------------------------------------------------------------
@@ -152,13 +151,15 @@ export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch |
       cacheBytes: size(cache().path), activityEntries: activity().entries.length,
       activityBytes: size(activity().path), configDir: configDir(),
     }),
-    checkUpdate: () => updates?.check() ?? null,
-    applyUpdate: async () => {
-      if (!updates?.found) throw new Error('No update to apply.')
-      await apply(deck.appDir, updates.found, version)
-      activity().add(`Restarting into RepoDeck ${updates.found.version}`)
+    /** RepoDeck's own update, for a checkout (installed copies ask main instead). */
+    update: async ({ action }: { action: UpdateAction }) => {
+      if (!updates) throw new Error('This copy updates through its installer.')
+      if (action === 'check') return updates.check(true)
+      if (action === 'download') return updates.download()
+      activity().add(`Restarting into RepoDeck ${updates.status.version ?? ''}`.trim())
       cache().save()
       await host.relaunch()
+      return updates.status
     },
   }
 }

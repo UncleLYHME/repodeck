@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { FolderPlus, ListCollapse, ListTree, Menu as MenuIcon, PanelLeft, RefreshCw } from 'lucide-react'
 import { basename } from '@shared/time'
 import { api, host, isMac, keys } from './bridge'
-import { addFolders, chooseFolders, fetchAllNow, refreshNow, showPage, useStore } from './store'
+import { addFolders, chooseFolders, fetchAllNow, refreshNow, showPage, updateAction, useStore } from './store'
 import { useSpin } from './ui/motion'
 import { Sidebar } from './Sidebar'
 import { MenuButton } from './ui/menu'
@@ -58,6 +58,7 @@ function Header({ narrow }: { narrow: boolean }) {
             { label: 'Activity', onClick: () => showPage('activity') },
             { label: 'Preferences', onClick: () => useStore.setState({ prefsOpen: true }) },
           ],
+          [{ label: 'Check for Updates', onClick: () => void updateAction('check', true) }],
         ]}
       />
       <button className="icon-btn" onClick={() => void refreshNow()} title={refreshing ? 'Refreshing…' : 'Refresh all (F5)'}

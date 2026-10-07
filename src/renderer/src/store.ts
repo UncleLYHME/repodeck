@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import type {
-  ActivityEntry, Capabilities, CommitFile, DeckState, GithubDashboard, LogRow, RepoState, UpdateInfo,
+  ActivityEntry, Capabilities, CommitFile, DeckState, GithubDashboard, LogRow, RepoState, UpdateAction, UpdateStatus,
 } from '@shared/types'
 import { basename } from '@shared/time'
 import { api, host, on } from './bridge'
@@ -41,8 +41,9 @@ interface State {
   activity: ActivityEntry[]
   unseenProblems: number
   github: GithubDashboard | null
-  update: UpdateInfo | null
-  dismissed: string[] // update versions the user said "Later" to this session
+  update: UpdateStatus | null
+  packaged: boolean // installed copy (updates through main), not a checkout (updates through the core)
+  dismissed: string[] // "phase:version" popups the user said Later to this session
   page: Page
   projectPath: string | null
   flash: string | null // repo panel to scroll to and highlight
@@ -70,6 +71,7 @@ export const useStore = create<State>(() => ({
   unseenProblems: 0,
   github: null,
   update: null,
+  packaged: false,
   dismissed: [],
   page: 'home',
   projectPath: null,
@@ -102,8 +104,9 @@ async function load(): Promise<void> {
     repos: Object.fromEntries(snap.repos.map((r) => [r.path, r])),
     histories: Object.fromEntries(snap.histories.map((h) => [h.path, h.rows])),
     activity: snap.activity,
-    update: snap.update,
   })
+  const app = await host.appInfo()
+  set({ packaged: app.packaged, update: app.packaged ? app.update : snap.update })
 }
 
 export async function init(): Promise<void> {
@@ -195,6 +198,23 @@ export async function addFolders(paths: string[]): Promise<void> {
 
 export async function chooseFolders(): Promise<void> {
   await addFolders(await host.chooseFolders())
+}
+
+/** RepoDeck's own update: installed copies ask main, checkouts ask the core. */
+export async function updateAction(action: UpdateAction, announce = false): Promise<void> {
+  try {
+    const status = get().packaged ? await host.update(action) : await api.update(action)
+    if (status) set({ update: status })
+    if (announce && status?.phase === 'up-to-date') toast(`RepoDeck ${get().version} is up to date`)
+    if (announce && status?.phase === 'error') toast(`Couldn't check for updates: ${status.error ?? 'unknown error'}`)
+  } catch (e) {
+    showAlert('Update failed', (e as Error).message)
+  }
+}
+
+/** Show the update popup again after "Later". */
+export function showUpdate(): void {
+  set({ dismissed: [] })
 }
 
 /** Count `work` as a refresh in flight while it runs. */

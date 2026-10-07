@@ -1,25 +1,24 @@
-// Bottom-right card when a new RepoDeck is ready: version, a few changelog lines, Later / Restart.
+// Bottom-right card for RepoDeck's own updates:
+//   available    "RepoDeck x is available"  Later | Update (or Download where it can't install itself)
+//   downloading  progress bar               Hide
+//   ready        "installs when you quit"   Later | Restart Now
 
 import { useState } from 'react'
-import { Download } from 'lucide-react'
+import { Download, RotateCw } from 'lucide-react'
 import { basename } from '@shared/time'
-import { api, host } from './bridge'
-import { confirm, useStore } from './store'
+import { confirm, updateAction, useStore } from './store'
 
 export function UpdatePopup() {
   const update = useStore((s) => s.update)
   const dismissed = useStore((s) => s.dismissed)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  if (!update || dismissed.includes(update.version)) return null
-  const ready = update.source === 'disk' || update.source === 'download'
-  const manual = update.source === 'manual'
+  if (!update?.version || !['available', 'downloading', 'ready'].includes(update.phase)) return null
+  const key = `${update.phase}:${update.version}`
+  if (dismissed.includes(key)) return null
+  const later = () => useStore.setState((s) => ({ dismissed: [...s.dismissed, key] }))
+  const checkout = update.source === 'checkout'
 
   const restart = async () => {
-    if (manual) {
-      void host.openExternal(update.url ?? 'https://github.com/UncleLYHME/repodeck/releases/latest')
-      return
-    }
     const drafts = Object.entries(useStore.getState().drafts).filter(([, text]) => text.trim()).map(([repo]) => basename(repo))
     if (drafts.length) {
       const ok = await confirm({
@@ -29,35 +28,48 @@ export function UpdatePopup() {
       if (!ok) return
     }
     setBusy(true)
-    setError(null)
-    try {
-      // the app quits and starts again from here
-      if (update.source === 'download') await host.installUpdate()
-      else await api.applyUpdate()
-    } catch (e) {
-      setBusy(false)
-      setError((e as Error).message)
-    }
+    await updateAction('restart') // RepoDeck quits here and starts the new version
+    setBusy(false)
   }
+
+  const title = update.phase === 'available' ? `RepoDeck ${update.version} is available`
+    : update.phase === 'downloading' ? `Downloading RepoDeck ${update.version}…` : `RepoDeck ${update.version} is ready`
 
   return (
     <aside className="pop-in fixed right-[18px] bottom-[18px] z-30 flex w-[340px] flex-col gap-2 rounded-[14px] border border-accent/55 bg-pop px-4 pt-3.5 pb-3 shadow-[0_14px_40px_rgb(0_0_0/0.5)]"
-      role="status" aria-label="Update available">
+      role="status" aria-label="RepoDeck update">
       <div className="flex items-center gap-2">
-        <Download size={16} className="flex-none text-accent-fg" />
-        <h2 className="flex-1 font-bold">RepoDeck {update.version} is {ready ? 'ready' : 'available'}</h2>
+        {update.phase === 'ready' ? <RotateCw size={16} className="flex-none text-accent-fg" /> : <Download size={16} className="flex-none text-accent-fg" />}
+        <h2 className="flex-1 font-bold">{title}</h2>
       </div>
-      <ul className="flex flex-col gap-1">
-        {(update.notes.length ? update.notes.slice(0, 4) : ['Bug fixes and improvements.']).map((n) => (
-          <li key={n} className="text-[12.5px] text-white/75">• {n}</li>
-        ))}
-      </ul>
-      {error && <p className="text-[12px] whitespace-pre-wrap text-danger">{error}</p>}
+      {update.phase === 'downloading' ? (
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]" role="progressbar" aria-valuenow={update.progress} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${update.progress}%` }} />
+          </div>
+          <span className="meta w-9 text-right">{update.progress}%</span>
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {(update.notes.length ? update.notes.slice(0, 4) : ['Bug fixes and improvements.']).map((n) => (
+            <li key={n} className="text-[12.5px] text-white/75">• {n}</li>
+          ))}
+        </ul>
+      )}
+      {update.phase === 'ready' && (
+        <p className="text-[12px] text-white/55">{checkout ? 'It starts the next time you open RepoDeck.' : 'It installs when you quit RepoDeck.'}</p>
+      )}
+      {update.error && update.phase === 'available' && <p className="text-[12px] whitespace-pre-wrap text-danger">{update.error}</p>}
       <div className="mt-1 flex justify-end gap-1.5">
-        <button className="btn btn-flat" onClick={() => useStore.setState((s) => ({ dismissed: [...s.dismissed, update.version] }))}>Later</button>
-        <button className="btn btn-primary pill" disabled={busy} onClick={() => void restart()}>
-          {busy && <span className="spinner" />} {manual ? 'Download' : ready ? 'Restart Now' : 'Restart to Update'}
-        </button>
+        <button className="btn btn-flat" onClick={later}>{update.phase === 'downloading' ? 'Hide' : 'Later'}</button>
+        {update.phase === 'available' && (
+          <button className="btn btn-primary pill" onClick={() => void updateAction('download')}>{update.manual ? 'Download' : 'Update'}</button>
+        )}
+        {update.phase === 'ready' && (
+          <button className="btn btn-primary pill" disabled={busy} onClick={() => void restart()}>
+            {busy && <span className="spinner" />} Restart Now
+          </button>
+        )}
       </div>
     </aside>
   )

@@ -88,7 +88,15 @@ Then click **Add Folder** (Ctrl+O), or drag folders onto the window: a repositor
 
 ### Updates
 
-Installed copies check GitHub Releases every 30 minutes (switch off in Preferences). Windows and the AppImage download the new version in the background and show **RepoDeck x.y.z is ready → Restart Now**; the macOS app and the .deb show **Download**. You're asked first if a commit message is still unsent.
+Every change that lands on `main` is released automatically, and RepoDeck tells you about it:
+
+1. Within 15 minutes of a release (or right away with **Check for Updates** in ☰ or Preferences), a card appears: **RepoDeck x.y.z is available**, with what changed.
+2. **Update** downloads it in the background, with progress. The sidebar shows an **Update** badge until it's installed.
+3. It installs **the next time you quit RepoDeck**, or right away with **Restart Now** (you're asked first if a commit message is still unsent).
+
+Prefer not to be asked? Turn on **Preferences → Updates → Install Updates Automatically**: new versions download in the background and install when you quit. **Check for Updates Automatically** can be switched off too; **Check Now** always works.
+
+Windows and the AppImage install updates themselves. The macOS app (until it's signed) and the .deb show **Download**, which opens the new release.
 
 ### Keyboard shortcuts
 
@@ -128,7 +136,7 @@ pnpm typecheck
 pnpm dist         # installers for the current platform, in release/
 ```
 
-On Linux you can also run it straight from a checkout: `./install.sh` adds a `repodeck` command and an app-menu entry that start `bin/repodeck`. That launcher installs dependencies and rebuilds when the checkout changes (keeping the last good build if a build fails), and a checkout updates itself by fast-forwarding to new versions on its upstream branch.
+On Linux you can also run it straight from a checkout: `./install.sh` adds a `repodeck` command and an app-menu entry that start `bin/repodeck`. That launcher installs dependencies and rebuilds when the checkout changes (keeping the last good build if a build fails). A checkout gets the same update flow, driven by new commits on its upstream branch: **Update** fast-forwards it and the next start rebuilds.
 
 ### How it's built
 
@@ -143,8 +151,12 @@ Git runs with `GIT_OPTIONAL_LOCKS=0` (no fighting your editor for `index.lock`),
 
 ### Releasing
 
-1. Raise `version` in `package.json` and add a `## x.y.z — date` section to [CHANGELOG.md](CHANGELOG.md).
-2. Commit, then tag and push: `git tag vX.Y.Z && git push origin main vX.Y.Z`.
-3. The [Release workflow](.github/workflows/release.yml) builds Linux, macOS and Windows installers, attaches them to a GitHub release with the changelog section as its notes, and publishes it. Installed copies pick it up within 30 minutes.
+Releases are automatic: push to `main`. When [CI](.github/workflows/ci.yml) passes and the push changed the app (not just docs or workflows), the [Release workflow](.github/workflows/release.yml):
+
+1. picks the version: the next patch after the latest release, or `package.json`'s version if you raised it (do that for bigger changes, together with a `## x.y.z — date` section in [CHANGELOG.md](CHANGELOG.md));
+2. writes the notes: that CHANGELOG section if there is one, otherwise the `feat`/`fix`/`perf` commit subjects since the last release;
+3. builds Linux, macOS and Windows installers, attaches them to a GitHub release and publishes it. Installed copies offer it within 15 minutes.
+
+Run it by hand from the Actions tab (**Release → Run workflow**, optionally *force*) to release without a new change.
 
 README screenshots come from a made-up deck: `pnpm build && xvfb-run -a node scripts/screenshots.mjs`.

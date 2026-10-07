@@ -19,6 +19,7 @@ const SAFETY_REFRESH_MS = 60_000 // file events drive updates; this only refresh
 
 export interface DeckHost {
   emit(name: string, data: unknown): void
+  settingsChanged?(settings: Config['settings']): void
   announce(message: string, body?: string, key?: string, uri?: string): void
   toast(message: string): void
 }
@@ -241,6 +242,7 @@ export class Deck {
       if (key === 'autoPull' && value) for (const r of this.repos.values()) r.maybeAutoPull() // catch up on fetched commits
     }
     this.save()
+    this.host.settingsChanged?.(this.settings)
   }
 
   /** Auto-pull is on globally and for the folder this repo is in. */

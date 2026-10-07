@@ -2,7 +2,7 @@
 
 import type {
   ActivityEntry, Branches, CommitFile, CompareTexts, DashboardActivity, DataInfo, DeckState, GithubDashboard,
-  HistoryState, HunkSet, Profile, ProjectGithub, ProjectStats, RepoState, Services, Settings, Snapshot, UpdateInfo,
+  HistoryState, HunkSet, Profile, ProjectGithub, ProjectStats, RepoState, Services, Settings, Snapshot, UpdateAction, UpdateStatus,
 } from '@shared/types'
 import type { RepoDeckBridge } from '../../preload/api'
 
@@ -56,7 +56,7 @@ export const api = {
   clearActivity: () => call('clearActivity'),
   clearCache: () => call('clearCache'),
   dataInfo: () => call<DataInfo>('dataInfo'),
-  applyUpdate: () => call('applyUpdate'),
+  update: (action: UpdateAction) => call<UpdateStatus>('update', { action }),
 }
 
 export const host = {
@@ -66,7 +66,8 @@ export const host = {
   chooseFolders: () => bridge().host.chooseFolders(),
   initialFolders: () => bridge().host.initialFolders(),
   pathForFile: (file: File) => bridge().host.pathForFile(file),
-  installUpdate: () => bridge().host.installUpdate(),
+  appInfo: () => bridge().host.appInfo(),
+  update: (action: UpdateAction) => bridge().host.update(action),
 }
 
 export const platform = (): string => window.repodeck?.platform ?? 'linux'
@@ -82,7 +83,7 @@ export interface CoreEvents {
   repoRemoved: string
   activity: ActivityEntry | null
   github: GithubDashboard
-  update: UpdateInfo
+  update: UpdateStatus
   toast: string
   openFolders: string[]
   reconnected: null

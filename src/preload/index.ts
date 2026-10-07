@@ -52,7 +52,8 @@ const api = {
     chooseFolders: (): Promise<string[]> => ipcRenderer.invoke('host:chooseFolders'),
     initialFolders: (): Promise<string[]> => ipcRenderer.invoke('host:initialFolders'),
     pathForFile: (file: File) => webUtils.getPathForFile(file),
-    installUpdate: () => ipcRenderer.invoke('host:installUpdate'),
+    appInfo: () => ipcRenderer.invoke('host:appInfo'),
+    update: (action: string) => ipcRenderer.invoke('host:update', action),
   },
   platform: process.platform,
 }

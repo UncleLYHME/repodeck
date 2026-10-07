@@ -1,11 +1,13 @@
 // Background watchers that aren't tied to one repo: GitHub (PRs, CI) and RepoDeck's own updates.
 
 import { watch, type FSWatcher } from 'node:fs'
-import type { GithubDashboard, UpdateInfo } from '../shared/types'
+import { join } from 'node:path'
+import type { GithubDashboard, UpdateStatus } from '../shared/types'
 import { basename } from '../shared/time'
 import { log } from './activity'
 import { github, githubCached } from './stats/github'
-import { CHECK_SECONDS, VERSION_FILE, check } from './update'
+import { CHECK_SECONDS, download, inspect } from './update'
+import { Throttle } from './watch'
 import type { Deck, DeckHost } from './deck'
 
 const GITHUB_MS = 5 * 60_000
@@ -58,20 +60,25 @@ export class GithubWatch {
   }
 }
 
-export class UpdateWatch {
-  found: UpdateInfo | null = null
+/**
+ * RepoDeck's own updates when it runs from a git checkout (installed copies: src/main/updater.ts).
+ * Same flow as installers: available -> Update (fast-forward) -> ready -> the next start rebuilds.
+ */
+export class CheckoutUpdates {
+  status: UpdateStatus = { phase: 'idle', version: null, notes: [], progress: 0, manual: false, checkedAt: null, source: 'checkout' }
   private announced = new Set<string>()
-  private watcher: FSWatcher | null = null
+  private watchers: FSWatcher[] = []
   private timer: ReturnType<typeof setInterval>
+  private recheck = new Throttle(1000, () => void this.check(false))
 
-  constructor(private deck: Deck, private host: DeckHost, private current: string) {
-    // Event-driven for the checkout itself; a quiet fetch now and then for upstream.
-    try {
-      this.watcher = watch(deck.appDir, (_type, name) => {
-        if (name?.toString() === VERSION_FILE) void this.check(false)
-      })
-    } catch {
-      this.watcher = null
+  constructor(private deck: Deck, private host: DeckHost, private built: string) {
+    // New commits arrive as ref changes: pulled in a terminal, fetched, or auto-pulled by RepoDeck itself.
+    for (const dir of ['.git', '.git/refs/heads', '.git/refs/remotes/origin']) {
+      try {
+        this.watchers.push(watch(join(deck.appDir, dir), () => this.recheck.call()))
+      } catch {
+        // not a checkout, or no remote
+      }
     }
     setTimeout(() => void this.check(), FIRST_UPDATE_MS).unref?.()
     this.timer = setInterval(() => void this.check(), CHECK_SECONDS * 1000)
@@ -79,26 +86,54 @@ export class UpdateWatch {
 
   close(): void {
     clearInterval(this.timer)
-    this.watcher?.close()
+    this.recheck.cancel()
+    for (const w of this.watchers) w.close()
   }
 
-  async check(fetch = true): Promise<UpdateInfo | null> {
-    const remote = this.deck.settings.updateChecks // with checks off, only an update already on disk shows
-    let update: UpdateInfo | null = null
+  private set(patch: Partial<UpdateStatus>): void {
+    this.status = { ...this.status, ...patch }
+    this.host.emit('update', this.status)
+  }
+
+  /** fetch: ask the remote too (the update-checks preference; always when you press Check Now). */
+  async check(fetch = this.deck.settings.updateChecks): Promise<UpdateStatus> {
+    if (this.status.phase === 'downloading') return this.status
+    const before = this.status
+    if (fetch) this.set({ phase: 'checking' })
     try {
-      update = await check(this.deck.appDir, this.current, { fetch: fetch && remote, remote })
-    } catch {
-      update = null // an update check must never disturb the app
+      const found = await inspect(this.deck.appDir, this.built, { fetch })
+      // A checkout already holding the update stays "ready" until RepoDeck restarts.
+      const phase = found.phase === 'up-to-date' && before.phase === 'ready' ? 'ready' : found.phase
+      this.set(phase === found.phase ? { ...found, error: undefined, checkedAt: Date.now() } : { phase, checkedAt: Date.now() })
+    } catch (e) {
+      this.set({ phase: before.phase === 'checking' ? 'error' : before.phase, error: (e as Error).message, checkedAt: Date.now() })
     }
-    if (!update) return null
-    this.found = update
-    this.host.emit('update', update)
-    if (!this.announced.has(update.version)) {
-      this.announced.add(update.version)
-      const title = update.source === 'disk' ? `RepoDeck ${update.version} is ready` : `RepoDeck ${update.version} is available`
-      log(title, null, 'auto')
-      this.host.announce(title, 'Open RepoDeck to restart into the new version.', 'update')
+    this.announce()
+    if (this.status.phase === 'available' && this.deck.settings.autoUpdate) await this.download()
+    return this.status
+  }
+
+  async download(): Promise<UpdateStatus> {
+    if (this.status.phase !== 'available') return this.status
+    this.set({ phase: 'downloading', progress: 0 })
+    try {
+      await download(this.deck.appDir)
+      log(`Downloaded RepoDeck ${this.status.version}; it's used from the next start`, null, 'auto')
+    } catch (e) {
+      this.set({ phase: 'available', error: (e as Error).message })
+      throw e
     }
-    return update
+    return this.check(false)
+  }
+
+  private announce(): void {
+    const { phase, version } = this.status
+    if (!version || (phase !== 'available' && phase !== 'ready')) return
+    const key = `${phase}:${version}`
+    if (this.announced.has(key)) return
+    this.announced.add(key)
+    const title = phase === 'available' ? `RepoDeck ${version} is available` : `RepoDeck ${version} is ready`
+    log(title, null, 'auto')
+    this.host.announce(title, phase === 'available' ? 'Open RepoDeck to update.' : 'It starts the next time you open RepoDeck.', 'update')
   }
 }

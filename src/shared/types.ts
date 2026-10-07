@@ -66,6 +66,7 @@ export interface Settings {
   notify: boolean
   fetchMinutes: number
   updateChecks: boolean
+  autoUpdate: boolean // download in the background and install on quit, without asking
   bannerMotion: boolean
   diffLayout: 'side' | 'unified'
   autostart: boolean
@@ -119,14 +120,24 @@ export interface ActivityEntry {
   level: Level
 }
 
-export interface UpdateInfo {
-  version: string
-  // disk/remote: a git checkout (restart, or fast-forward then restart);
-  // download: an installed copy has downloaded it (restart installs); manual: open the download page
-  source: 'disk' | 'remote' | 'download' | 'manual'
+/**
+ * Where RepoDeck's own update stands. Installed copies get it from GitHub Releases (main); a git
+ * checkout from new commits on its upstream (the core). The flow is the same:
+ *   available -> (Update) -> downloading -> ready -> installs on the next quit, or Restart Now.
+ */
+export interface UpdateStatus {
+  phase: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error'
+  version: string | null // what's coming: "2.1.4", or "2.1.0 · a1b2c3d" for a checkout
   notes: string[]
+  progress: number // 0-100 while downloading
+  manual: boolean // can't install itself (unsigned macOS app, .deb): Update opens the download page
   url?: string
+  checkedAt: number | null // ms since the epoch
+  error?: string
+  source: 'installer' | 'checkout'
 }
+
+export type UpdateAction = 'check' | 'download' | 'restart'
 
 export interface Capabilities {
   code: boolean // the `code` launcher is on PATH
@@ -139,7 +150,7 @@ export interface Snapshot {
   histories: HistoryState[]
   activity: ActivityEntry[]
   version: string
-  update: UpdateInfo | null
+  update: UpdateStatus | null
   capabilities: Capabilities
   configDir: string
 }
