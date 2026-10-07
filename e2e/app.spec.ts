@@ -122,6 +122,21 @@ test('the activity log records what happened', async () => {
   await expect(win.getByText('Created feature/e2e').first()).toBeVisible()
 })
 
+test('the Clock preference switches times between 12- and 24-hour', async () => {
+  const times = win.locator('main li .meta.whitespace-nowrap')
+  await win.keyboard.press('Control+,')
+  const clock = async (label: string) => {
+    await win.getByRole('combobox', { name: 'Clock' }).click()
+    await win.getByRole('option', { name: label }).click()
+  }
+  await clock('24-hour')
+  await expect(times.first()).toHaveText(/^\d{2}:\d{2}$/)
+  await clock('12-hour')
+  await expect(times.first()).toHaveText(/^\d{1,2}:\d{2}\s?[AP]M$/i)
+  await clock('System')
+  await win.keyboard.press('Escape')
+})
+
 test('the project page shows analytics', async () => {
   await win.getByRole('button', { name: /^alpha,/ }).click()
   await expect(win.getByRole('region', { name: 'All time' }).getByText('3', { exact: true })).toBeVisible()

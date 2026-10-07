@@ -6,7 +6,8 @@ text stays in neutral ink.
 */
 
 import { useState } from 'react'
-import { parseDay } from '@shared/time'
+import { clockHour, parseDay } from '@shared/time'
+import { useHour12 } from '../store'
 
 const BAR = '#3b6fe0'
 const BAR_TODAY = '#6f97ff'
@@ -63,6 +64,7 @@ function heatLevel(count: number, peak: number): number {
 export function Heatmap({ punchcard }: { punchcard: [number, number, number][] }) {
   const counts = new Map(punchcard.map(([d, h, n]) => [`${d},${h}`, n]))
   const peak = Math.max(0, ...punchcard.map(([, , n]) => n))
+  const hour12 = useHour12()
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex gap-2">
@@ -73,13 +75,12 @@ export function Heatmap({ punchcard }: { punchcard: [number, number, number][] }
           <div className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-[3px]" role="img" aria-label="Commits by weekday and hour">
             {DAY_NAMES.map((name, d) => Array.from({ length: 24 }, (_, h) => {
               const n = counts.get(`${d},${h}`) ?? 0
-              const hh = (x: number) => String(x % 24).padStart(2, '0')
               return <div key={`${d}-${h}`} className="h-[14px] rounded-[3px]" style={{ background: HEAT[heatLevel(n, peak)] }}
-                title={`${name} ${hh(h)}:00–${hh(h + 1)}:00 · ${n} commit${n === 1 ? '' : 's'}`} />
+                title={`${name} ${clockHour(h, hour12)}–${clockHour(h + 1, hour12)} · ${n} commit${n === 1 ? '' : 's'}`} />
             }))}
           </div>
           <div className="grid grid-cols-[repeat(24,minmax(0,1fr))]" aria-hidden="true">
-            {Array.from({ length: 24 }, (_, h) => <span key={h} className="text-[10px] text-white/45">{h % 6 === 0 ? h : ''}</span>)}
+            {Array.from({ length: 24 }, (_, h) => <span key={h} className="text-[10px] whitespace-nowrap text-white/45">{h % 6 === 0 ? (hour12 ? clockHour(h, true) : h) : ''}</span>)}
           </div>
         </div>
       </div>

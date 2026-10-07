@@ -69,6 +69,7 @@ export interface Settings {
   autoUpdate: boolean // download in the background and install on quit, without asking
   bannerMotion: boolean
   diffLayout: 'side' | 'unified'
+  clock: 'system' | '12h' | '24h'
   autostart: boolean
 }
 
@@ -100,7 +101,7 @@ export interface RepoState {
   slug: string | null // GitHub owner/name
   busy: string | null // running user action
   fetchError: string | null
-  fetchedAt: string | null // "14:05"
+  fetchedAt: number | null // epoch seconds
   pending: Pending | null
 }
 
