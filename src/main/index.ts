@@ -13,6 +13,7 @@ import { Endpoint } from '../shared/rpc'
 import { loadBounds, saveBounds } from './bounds'
 import { configDir, dirsEnv } from './dirs'
 import { loginItem, loginPath, openInCode, setMenu } from './platform'
+import { adoptSession, otherSession, sessionEnv } from './session'
 import { Updater, type UpdaterSettings } from './updater'
 
 const APP_DIR = app.getAppPath() // the checkout (package.json, bin/, data/), or app.asar when installed
@@ -125,15 +126,15 @@ function announce(a: Announcement): void {
 }
 
 /** Start again: installed copies directly; a checkout through its launcher (which rebuilds) once this process is gone. */
-function relaunch(): void {
+function relaunch(folders: string[] = []): void {
   if (app.isPackaged) {
-    app.relaunch()
+    app.relaunch({ args: [...process.argv.slice(1), ...folders] })
     app.quit()
     return
   }
   const launcher = join(APP_DIR, 'bin/repodeck')
   const script = 'while kill -0 "$0" 2>/dev/null; do sleep 0.1; done; exec "$@"'
-  spawn('sh', ['-c', script, String(process.pid), launcher], { cwd: app.getPath('home'), detached: true, stdio: 'ignore' }).unref()
+  spawn('sh', ['-c', script, String(process.pid), launcher, ...folders], { cwd: app.getPath('home'), detached: true, stdio: 'ignore' }).unref()
   setTimeout(() => app.quit(), 100)
 }
 
@@ -233,10 +234,17 @@ function hostHandlers(): void {
 
 // -- lifecycle --------------------------------------------------------------------------------
 
-if (!app.requestSingleInstanceLock()) {
+if (!app.requestSingleInstanceLock({ session: sessionEnv() })) {
   app.quit()
 } else {
-  app.on('second-instance', (_e, argv) => {
+  app.on('second-instance', (_e, argv, _cwd, data) => {
+    const session = otherSession(sessionEnv(), data)
+    if (session) {
+      // Launched from another desktop session (a new remote-desktop login): reopen there.
+      adoptSession(session)
+      relaunch(foldersIn(argv))
+      return
+    }
     if (!win) return
     if (win.isMinimized()) win.restore()
     win.show()
