@@ -13,6 +13,7 @@
   <a href="https://github.com/UncleLYHME/repodeck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/UncleLYHME/repodeck?label=release&color=3b6fe0"></a>
   <a href="https://github.com/UncleLYHME/repodeck/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/UncleLYHME/repodeck/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Linux%20·%20macOS%20·%20Windows-555">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
 </p>
 
 <p align="center">
@@ -82,7 +83,7 @@ Download the latest release for your platform from **[Releases](https://github.c
 RepoDeck needs **git** on your PATH. Optional: the [GitHub CLI](https://cli.github.com) (`gh auth login`) for pull requests and CI on Home, and VS Code's `code` command for opening files.
 
 > [!NOTE]
-> The macOS app isn't signed with an Apple Developer ID yet. The first time, right-click RepoDeck in Applications and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/RepoDeck.app`). Windows may show a SmartScreen prompt for the same reason.
+> The macOS app isn't signed with an Apple Developer ID. The first time, right-click RepoDeck in Applications and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/RepoDeck.app`). Windows may show a SmartScreen prompt for the same reason.
 
 Then click **Add Folder** (Ctrl+O), or drag folders onto the window: a repository, or a folder that contains several.
 
@@ -96,7 +97,7 @@ Every change that lands on `main` is released automatically, and RepoDeck tells 
 
 Prefer not to be asked? Turn on **Preferences → Updates → Install Updates Automatically**: new versions download in the background and install when you quit. **Check for Updates Automatically** can be switched off too; **Check Now** always works.
 
-Windows and the AppImage install updates themselves. The macOS app (until it's signed) and the .deb show **Download**, which opens the new release.
+Windows and the AppImage install updates themselves. The unsigned macOS app and the .deb show **Download**, which opens the new release.
 
 ### Keyboard shortcuts
 
@@ -160,3 +161,7 @@ Releases are automatic: push to `main`. When [CI](.github/workflows/ci.yml) pass
 Run it by hand from the Actions tab (**Release → Run workflow**, optionally *force*) to release without a new change.
 
 README screenshots come from a made-up deck: `pnpm build && xvfb-run -a node scripts/screenshots.mjs`.
+
+## License
+
+[MIT](LICENSE) © 2026 Uncle LYHME. Use, change and share RepoDeck however you like, including commercially, as long as copies keep the copyright and license notice, which credits the original.

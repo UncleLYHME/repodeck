@@ -4,7 +4,7 @@
   "version": "2.2.0",
   "description": "Bird's-eye source control for many git repositories",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": {
     "name": "UncleLYHME",
     "email": "iamlyhme@gmail.com",
