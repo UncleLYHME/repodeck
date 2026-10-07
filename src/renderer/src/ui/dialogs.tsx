@@ -57,7 +57,7 @@ export function Toasts() {
   return (
     <div className="pointer-events-none fixed bottom-5 left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2" role="status" aria-live="polite">
       {toasts.map((t) => (
-        <div key={t.id} className="rounded-full border border-white/10 bg-raised px-4 py-2 text-[13px] shadow-xl shadow-black/40">
+        <div key={t.id} data-leaving={t.leaving || undefined} className="toast rounded-full border border-white/10 bg-raised px-4 py-2 text-[13px] shadow-xl shadow-black/40">
           {t.message}
         </div>
       ))}

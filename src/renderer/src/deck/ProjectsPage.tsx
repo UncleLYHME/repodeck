@@ -1,5 +1,6 @@
 // The Projects page: one collapsible section per folder, holding the repo panels in a grid.
 
+import { useEffect, useState } from 'react'
 import { ChevronRight, FolderOpen } from 'lucide-react'
 import type { GroupState, RepoState } from '@shared/types'
 import { basename, plural } from '@shared/time'
@@ -32,6 +33,12 @@ function FolderGroup({ group }: { group: GroupState }) {
   const rows = Math.max(1, Math.ceil(ordered.length / MAX_COLUMNS))
   const cols = Math.max(1, Math.ceil(ordered.length / rows))
   const id = `group-${group.folder}`
+  // Panels stay mounted while the section slides closed, then unmount (they're heavy).
+  const [mounted, setMounted] = useState(group.expanded)
+  useEffect(() => {
+    if (group.expanded) setMounted(true)
+    else if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setMounted(false)
+  }, [group.expanded])
 
   return (
     <section aria-label={basename(group.folder)}>
@@ -49,9 +56,10 @@ function FolderGroup({ group }: { group: GroupState }) {
           [{ label: 'Remove Folder from Deck', onClick: () => void api.removeGroup(group.folder) }],
         ]} />
       </div>
-      <div id={id} className={`grid transition-[grid-template-rows] duration-200 ${group.expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+      <div id={id} className={`grid transition-[grid-template-rows] duration-200 ease-out ${group.expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+        onTransitionEnd={(e) => e.target === e.currentTarget && !group.expanded && setMounted(false)}>
         <div className="min-h-0 overflow-hidden">
-          {group.expanded && (
+          {mounted && (
             <div className="grid gap-3 pt-2 pb-1"
               style={{ gridTemplateColumns: `repeat(auto-fill, minmax(max(380px, calc((100% - ${(cols - 1) * 12}px) / ${cols})), 1fr))` }}>
               {ordered.map((path) => <RepoPanel key={path} repo={path} />)}

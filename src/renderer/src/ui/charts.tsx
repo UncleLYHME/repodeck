@@ -26,7 +26,7 @@ export function Bars({ days, height = 78 }: { days: [string, number][]; height?:
       aria-label={`${total} commits over ${days.length} days`}>
       {days.map(([day, n], i) => (
         <div key={day} className="group relative flex h-full flex-1 items-end" title={`${fmtDay(day)}: ${n} commit${n === 1 ? '' : 's'}`}>
-          <div className="w-full rounded-[3px] transition-[height] duration-700 ease-out"
+          <div className="w-full origin-bottom rounded-[3px] transition-[height,scale] duration-700 ease-out starting:scale-y-0"
             style={{ height: n ? Math.max(2, (n / peak) * (height - 4)) : 2, background: !n ? BAR_EMPTY : i === days.length - 1 ? BAR_TODAY : BAR }} />
         </div>
       ))}
@@ -130,7 +130,7 @@ export function StackedBar({ parts }: { parts: [string, number, string][] }) {
 export function Meter({ value, max }: { value: number; max: number }) {
   return (
     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]" role="meter" aria-valuenow={value} aria-valuemin={0} aria-valuemax={max}>
-      <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${max ? (value / max) * 100 : 0}%` }} />
+      <div className="h-full origin-left rounded-full bg-accent transition-[width,scale] duration-500 starting:scale-x-0" style={{ width: `${max ? (value / max) * 100 : 0}%` }} />
     </div>
   )
 }

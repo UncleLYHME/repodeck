@@ -128,6 +128,25 @@ test('the project page shows analytics', async () => {
   await expect(win.getByRole('region', { name: 'Languages' }).getByText('TypeScript')).toBeVisible()
 })
 
+test('the refresh button spins until the refresh is done', async () => {
+  const button = win.getByRole('button', { name: 'Refresh all' })
+  const icon = button.locator('svg')
+  await button.click()
+  await expect(icon).toHaveClass(/spin-soft/)
+  await expect(button).toHaveAttribute('aria-busy', 'false', { timeout: 10_000 })
+  await expect(icon).not.toHaveClass(/spin-soft/, { timeout: 3000 }) // finishes its turn, then stops
+})
+
+test('with reduced motion the refresh icon stays still', async () => {
+  await win.emulateMedia({ reducedMotion: 'reduce' })
+  const button = win.getByRole('button', { name: 'Refresh all' })
+  await button.click()
+  expect(await button.locator('svg').evaluate((el) => getComputedStyle(el).animationName)).toBe('none')
+  await expect(button).toHaveAttribute('aria-busy', 'false', { timeout: 10_000 })
+  await expect(button.locator('svg')).not.toHaveClass(/spin-soft/)
+  await win.emulateMedia({ reducedMotion: 'no-preference' })
+})
+
 test('preferences save to repos.json and survive a restart', async () => {
   await win.keyboard.press('Control+,')
   await win.getByRole('switch', { name: 'Animated Banner' }).click()

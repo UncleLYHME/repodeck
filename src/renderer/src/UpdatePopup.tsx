@@ -34,7 +34,7 @@ export function UpdatePopup() {
   }
 
   return (
-    <aside className="fixed right-[18px] bottom-[18px] z-30 flex w-[340px] flex-col gap-2 rounded-[14px] border border-accent/55 bg-pop px-4 pt-3.5 pb-3 shadow-[0_14px_40px_rgb(0_0_0/0.5)]"
+    <aside className="pop-in fixed right-[18px] bottom-[18px] z-30 flex w-[340px] flex-col gap-2 rounded-[14px] border border-accent/55 bg-pop px-4 pt-3.5 pb-3 shadow-[0_14px_40px_rgb(0_0_0/0.5)]"
       role="status" aria-label="Update available">
       <div className="flex items-center gap-2">
         <Download size={16} className="flex-none text-accent-fg" />

@@ -181,6 +181,37 @@
   .switch-thumb[data-checked] { translate: 16px 0; }
 }
 
+/* -- motion: short, transform/opacity only, and gone under reduced motion ----------------------- */
+@layer components {
+  .spin-soft { animation: spin 0.9s linear infinite; }
+  @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+  .bump { animation: bump 320ms cubic-bezier(0.3, 0.7, 0.4, 1); }
+  @keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .page-in { animation: page-in 180ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+
+  /* pressed buttons sink a little */
+  .btn, .icon-btn, .chip-btn { transition-property: background-color, transform; transition-duration: 120ms, 80ms; }
+  .btn:active:not(:disabled), .icon-btn:active:not(:disabled), .chip-btn:active:not(:disabled) { transform: scale(0.96); }
+
+  /* things that arrive slide in from where they belong */
+  .toast { transition: opacity 180ms, transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+  .toast[data-leaving] { opacity: 0; transform: translateY(6px); }
+  .pop-in { transition: opacity 220ms, transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+  .row-in { transition: opacity 180ms, transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+  .drawer { transition: transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+  .fade-in { transition: opacity 200ms; }
+  .dash-row { transition: opacity 220ms, background-color 120ms; }
+  @starting-style {
+    .toast { opacity: 0; transform: translateY(10px) scale(0.98); }
+    .pop-in { opacity: 0; transform: translateY(14px); }
+    .row-in { opacity: 0; transform: translateX(-6px); }
+    .drawer { transform: translateX(-100%); }
+    .fade-in, .dash-row { opacity: 0; }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* spinners can't spin: show "working" as a dimmed, still icon instead of a flicker */
+  .spin-soft, .spinner { animation: none !important; opacity: 0.55; }
 }

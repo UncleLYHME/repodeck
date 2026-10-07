@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { FolderPlus, ListCollapse, ListTree, Menu as MenuIcon, PanelLeft, RefreshCw } from 'lucide-react'
 import { basename } from '@shared/time'
 import { api, host } from './bridge'
-import { addFolders, chooseFolders, refreshNow, showPage, useStore } from './store'
+import { addFolders, chooseFolders, fetchAllNow, refreshNow, showPage, useStore } from './store'
+import { useSpin } from './ui/motion'
 import { Sidebar } from './Sidebar'
 import { MenuButton } from './ui/menu'
 import { AlertBox, ConfirmDialog, Toasts } from './ui/dialogs'
@@ -22,6 +23,8 @@ function Header({ narrow }: { narrow: boolean }) {
   const projectPath = useStore((s) => s.projectPath)
   const anyOpen = useStore((s) => s.deck?.groups.some((g) => g.expanded) ?? false)
   const title = page === 'project' && projectPath ? basename(projectPath) : TITLES[page]
+  const refreshing = useStore((s) => s.refreshing > 0)
+  const spin = useSpin(refreshing)
   return (
     <header
       className="drag flex h-[46px] flex-none items-center gap-2 border-b border-line pl-3"
@@ -50,15 +53,16 @@ function Header({ narrow }: { narrow: boolean }) {
         label="Main menu"
         icon={<MenuIcon size={17} />}
         sections={[
-          [{ label: 'Fetch All Now', onClick: () => void api.fetchAll() }],
+          [{ label: 'Fetch All Now', onClick: () => void fetchAllNow() }],
           [
             { label: 'Activity', onClick: () => showPage('activity') },
             { label: 'Preferences', onClick: () => useStore.setState({ prefsOpen: true }) },
           ],
         ]}
       />
-      <button className="icon-btn" onClick={refreshNow} title="Refresh all (F5)" aria-label="Refresh all">
-        <RefreshCw size={16} />
+      <button className="icon-btn" onClick={() => void refreshNow()} title={refreshing ? 'Refreshing…' : 'Refresh all (F5)'}
+        aria-label="Refresh all" aria-busy={refreshing}>
+        <RefreshCw size={16} {...spin} />
       </button>
     </header>
   )
@@ -66,10 +70,9 @@ function Header({ narrow }: { narrow: boolean }) {
 
 function Page() {
   const page = useStore((s) => s.page)
-  if (page === 'projects') return <ProjectsPage />
-  if (page === 'project') return <ProjectPage />
-  if (page === 'activity') return <ActivityPage />
-  return <HomePage />
+  const project = useStore((s) => s.projectPath)
+  const view = page === 'projects' ? <ProjectsPage /> : page === 'project' ? <ProjectPage /> : page === 'activity' ? <ActivityPage /> : <HomePage />
+  return <div key={page === 'project' ? `project:${project}` : page} className="page-in h-full">{view}</div>
 }
 
 function useShortcuts(): void {
@@ -81,7 +84,7 @@ function useShortcuts(): void {
         void chooseFolders()
       } else if (e.key === 'F5' || (ctrl && e.key.toLowerCase() === 'r')) {
         e.preventDefault()
-        refreshNow()
+        void refreshNow()
       } else if (ctrl && e.key === ',') {
         e.preventDefault()
         useStore.setState({ prefsOpen: true })
@@ -147,8 +150,8 @@ export function App() {
       {!narrow && <Sidebar />}
       {narrow && sideOpen && (
         <>
-          <div className="modal-backdrop z-40" onClick={() => useStore.setState({ sideOpen: false })} />
-          <div className="fixed inset-y-0 left-0 z-50 flex w-[260px] shadow-2xl shadow-black/60"
+          <div className="modal-backdrop fade-in z-40" onClick={() => useStore.setState({ sideOpen: false })} />
+          <div className="drawer fixed inset-y-0 left-0 z-50 flex w-[260px] shadow-2xl shadow-black/60"
             onKeyDown={(e) => e.key === 'Escape' && useStore.setState({ sideOpen: false })}>
             <div className="grid w-full"><Sidebar /></div>
           </div>

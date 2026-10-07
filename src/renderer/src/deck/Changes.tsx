@@ -65,7 +65,7 @@ function Row({ repo, state, change, checked, onToggle }: {
       sections={sections}
       role="listitem"
       tabIndex={0}
-      className="group flex h-[30px] items-center gap-2 rounded-md px-2 hover:bg-white/[0.04] focus-visible:bg-white/[0.06]"
+      className="row-in group flex h-[30px] items-center gap-2 rounded-md px-2 hover:bg-white/[0.04] focus-visible:bg-white/[0.06]"
       title={`${change.orig ? `${change.orig} → ${change.path}` : change.path}\nRight-click for more`}
       onClick={() => openChange(repo, state, change)}
       onKeyDown={(e) => e.key === 'Enter' && openChange(repo, state, change)}

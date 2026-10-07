@@ -75,13 +75,14 @@ export class RepoController {
   private pulling = false
   private loading = false
   private pending = false
+  private waiting: (() => void)[] = [] // refresh() callers, resolved once the repo is read and nothing is queued
   private known: Known = {}
   private lastState = ''
   private watcher: RepoWatcher
   private closed = false
 
   constructor(readonly path: string, private host: RepoHost) {
-    this.watcher = new RepoWatcher(path, () => this.refresh()) // also does the first refresh
+    this.watcher = new RepoWatcher(path, () => void this.refresh()) // also does the first refresh
   }
 
   get name(): string {
@@ -91,25 +92,30 @@ export class RepoController {
   close(): void {
     this.closed = true
     this.watcher.close()
+    for (const resolve of this.waiting.splice(0)) resolve()
   }
 
   // -- data -----------------------------------------------------------------------------
 
   /** Re-read status (and, when refs moved, history, stashes, identity). Coalesces bursts. */
-  refresh(): void {
-    if (this.closed) return
+  refresh(): Promise<void> {
+    if (this.closed) return Promise.resolve()
+    const done = new Promise<void>((resolve) => this.waiting.push(resolve))
     if (this.loading) {
       this.pending = true
-      return
+      return done
     }
     this.loading = true
     void reads.run(() => this.load()).finally(() => {
       this.loading = false
       if (this.pending) {
         this.pending = false
-        this.refresh()
+        void this.refresh()
+      } else {
+        for (const resolve of this.waiting.splice(0)) resolve()
       }
     })
+    return done
   }
 
   private async load(): Promise<void> {
@@ -207,7 +213,7 @@ export class RepoController {
     } finally {
       this.busy = null
       this.emit()
-      this.refresh()
+      void this.refresh()
     }
   }
 
@@ -243,7 +249,7 @@ export class RepoController {
     ).finally(() => {
       this.pulling = false
       this.emit()
-      this.refresh()
+      void this.refresh()
     })
   }
 

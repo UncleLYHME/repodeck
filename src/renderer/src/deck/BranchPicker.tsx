@@ -7,6 +7,7 @@ import type { Branches, Status } from '@shared/types'
 import { api } from '../bridge'
 import { runOp } from '../store'
 import { BranchIcon } from '../ui/icons'
+import { Bump } from '../ui/motion'
 
 export function BranchPicker({ repo, status, error }: { repo: string; status: Status | null; error: string | null }) {
   const [open, setOpen] = useState(false)
@@ -62,7 +63,7 @@ export function BranchPicker({ repo, status, error }: { repo: string; status: St
     <Popover.Root open={open} onOpenChange={onOpen}>
       <Popover.Trigger className="branch-pill ellipsis" title={`${tracking} · click to switch branch`} disabled={!status}
         aria-label={`Branch ${label}: switch branch`}>
-        <span className="ellipsis">{label}</span>
+        <Bump value={label} className="min-w-0"><span className="ellipsis">{label}</span></Bump>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner sideOffset={6} align="end" className="z-50">

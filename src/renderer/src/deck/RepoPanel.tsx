@@ -7,6 +7,7 @@ import { basename, plural } from '@shared/time'
 import { api, host } from '../bridge'
 import { confirm, runOp, useStore } from '../store'
 import { MenuButton } from '../ui/menu'
+import { Bump } from '../ui/motion'
 import { BranchPicker } from './BranchPicker'
 import { Changes, MAX_CHANGES } from './Changes'
 import { CommitBox } from './CommitBox'
@@ -30,7 +31,11 @@ function SyncLabel({ state }: { state: RepoState }) {
     text = `⚠ ${text}`
     tip.push(`Background fetch failed: ${state.fetchError}`)
   }
-  return <span className={`text-[12px] whitespace-nowrap ${state.fetchError ? 'text-busy' : 'text-white/55'}`} title={tip.join('\n')}>{text}</span>
+  return (
+    <Bump value={text}>
+      <span className={`text-[12px] whitespace-nowrap ${state.fetchError ? 'text-busy' : 'text-white/55'}`} title={tip.join('\n')}>{text}</span>
+    </Bump>
+  )
 }
 
 async function confirmAbort(repo: string, state: RepoState): Promise<void> {

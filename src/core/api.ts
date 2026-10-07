@@ -115,7 +115,7 @@ export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch, 
       try {
         await ops.applyHunk(path, patch, mode)
       } finally {
-        repo(path).refresh()
+        void repo(path).refresh()
       }
     },
     commitFiles: ({ repo: path, sha }: { repo: string; sha: string }) => (repo(path), commitFiles(path, sha)),

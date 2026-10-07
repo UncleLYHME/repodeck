@@ -27,6 +27,7 @@ export interface Confirm {
 export interface Toast {
   id: number
   message: string
+  leaving?: boolean
 }
 
 interface State {
@@ -54,6 +55,7 @@ interface State {
   identityFor: string | null
   prefsOpen: boolean
   sideOpen: boolean // the sidebar drawer in narrow windows
+  refreshing: number // refreshes and fetch-alls in flight (the refresh button spins)
 }
 
 export const useStore = create<State>(() => ({
@@ -81,6 +83,7 @@ export const useStore = create<State>(() => ({
   identityFor: null,
   prefsOpen: false,
   sideOpen: false,
+  refreshing: 0,
 }))
 
 const set = useStore.setState
@@ -137,6 +140,7 @@ let toastId = 0
 export function toast(message: string): void {
   const id = ++toastId
   set((s) => ({ toasts: [...s.toasts.slice(-3), { id, message }] }))
+  setTimeout(() => set((s) => ({ toasts: s.toasts.map((t) => (t.id === id ? { ...t, leaving: true } : t)) })), 3000)
   setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 3200)
 }
 
@@ -193,11 +197,29 @@ export async function chooseFolders(): Promise<void> {
   await addFolders(await host.chooseFolders())
 }
 
+/** Count `work` as a refresh in flight while it runs. */
+async function whileRefreshing(work: Promise<unknown>): Promise<void> {
+  set((s) => ({ refreshing: s.refreshing + 1 }))
+  try {
+    await work
+  } catch {
+    // failures show up per repo (⚠, activity log); the button just stops
+  } finally {
+    set((s) => ({ refreshing: s.refreshing - 1 }))
+  }
+}
+
 /** F5: everything, including GitHub data that's normally reused for a while. */
-export function refreshNow(): void {
-  void api.refreshAll()
-  void api.github(true).then((github) => set({ github })).catch(() => {})
+export function refreshNow(): Promise<void> {
   window.dispatchEvent(new Event('repodeck:reload'))
+  return whileRefreshing(Promise.all([
+    api.refreshAll(),
+    api.github(true).then((github) => set({ github }), () => {}),
+  ]))
+}
+
+export function fetchAllNow(): Promise<void> {
+  return whileRefreshing(api.fetchAll())
 }
 
 // -- per-repo UI state ------------------------------------------------------------------------------

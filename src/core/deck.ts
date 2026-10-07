@@ -51,7 +51,7 @@ export class Deck {
       this.syncFolder(group) // pick up projects created or deleted while the app was closed
     }
     this.timers.push(setInterval(() => this.fetchDue(), FETCH_CHECK_MS))
-    this.timers.push(setInterval(() => this.refreshAll(), SAFETY_REFRESH_MS))
+    this.timers.push(setInterval(() => void this.refreshAll(), SAFETY_REFRESH_MS))
     setTimeout(() => this.fetchDue(), FIRST_FETCH_MS).unref?.()
   }
 
@@ -249,32 +249,36 @@ export class Deck {
     return this.settings.autoPull && (!group || group.autoPull)
   }
 
-  refreshAll(): void {
-    for (const r of this.repos.values()) r.refresh()
+  /** Resolves once every repo has been re-read. */
+  async refreshAll(): Promise<void> {
+    await Promise.all([...this.repos.values()].map((r) => r.refresh()))
   }
 
   // -- background fetch ------------------------------------------------------------------------
 
   private fetchDue(): void {
-    if (this.settings.autoFetch) this.fetchAll(true)
+    if (this.settings.autoFetch) void this.fetchAll(true)
   }
 
-  fetchAll(dueOnly = false): void {
+  /** Fetch every repo (or only those due); resolves when all of those fetches finished. */
+  async fetchAll(dueOnly = false): Promise<void> {
     const interval = this.settings.fetchMinutes * 60_000
     const now = Date.now()
+    const runs: Promise<void>[] = []
     for (const r of this.repos.values()) {
       if (r.fetching || (dueOnly && now - r.lastFetch < interval)) continue
       r.fetching = true
       const behind = r.status?.behind ?? 0
-      void network.run(async () => {
+      runs.push(network.run(async () => {
         try {
           const fresh = (await backgroundFetch(r.path)) ? await gitStatus(r.path) : null
           r.fetchFinished(null, behind, fresh)
         } catch (e) {
           r.fetchFinished(e, behind, null) // offline, auth needed, timeout
         }
-      })
+      }))
     }
+    await Promise.all(runs)
   }
 }
 

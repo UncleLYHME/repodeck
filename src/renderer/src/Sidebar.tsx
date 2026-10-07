@@ -4,6 +4,7 @@ import { History, House, LayoutGrid } from 'lucide-react'
 import type { RepoState } from '@shared/types'
 import { basename } from '@shared/time'
 import { showPage, showProject, sortedRepos, useStore, type Page } from './store'
+import { Bump } from './ui/motion'
 
 function repoBadge(r: RepoState | undefined): { dot: string; badge: string; state: string } {
   const st = r?.status
@@ -23,7 +24,7 @@ function NavRow({ page, label, icon, badge }: { page: Page; label: string; icon:
     >
       <span className="text-white/75">{icon}</span>
       <span className="flex-1">{label}</span>
-      {!!badge && <span className="count badge-warn">{badge}</span>}
+      {!!badge && <Bump value={badge}><span className="count badge-warn">{badge}</span></Bump>}
     </button>
   )
 }
@@ -63,7 +64,7 @@ export function Sidebar() {
                 <span className={`dot ${dot}`} />
                 <span className="ellipsis flex-1">{basename(path)}</span>
                 {pinned.has(path) && <span className="text-busy" title="Pinned">★</span>}
-                {badge && <span className="rounded-full bg-white/[0.06] px-1.5 font-mono text-[11px] text-white/60">{badge}</span>}
+                {badge && <Bump value={badge}><span className="rounded-full bg-white/[0.06] px-1.5 font-mono text-[11px] text-white/60">{badge}</span></Bump>}
               </button>
             </li>
           )
