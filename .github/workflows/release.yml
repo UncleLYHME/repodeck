@@ -26,7 +26,7 @@ concurrency:
 jobs:
   draft:
     if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, foundry]
     outputs:
       release: ${{ steps.plan.outputs.release }}
       version: ${{ steps.plan.outputs.version }}
@@ -70,11 +70,19 @@ jobs:
   build:
     needs: draft
     if: needs.draft.outputs.release == 'true'
+    name: build (${{ matrix.platform }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+        # Linux builds on Foundry's self-hosted runner; macOS and Windows need GitHub's runners.
+        include:
+          - platform: linux
+            runner: [self-hosted, foundry]
+          - platform: macos
+            runner: macos-latest
+          - platform: windows
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash # the same quoting everywhere (PowerShell splits -c.extraMetadata.version=…)
@@ -92,12 +100,12 @@ jobs:
       - name: Build installers and upload them to the draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # macOS builds aren't signed yet
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # macOS builds are unsigned
         run: pnpm exec electron-builder --publish always -c.extraMetadata.version=${{ needs.draft.outputs.version }}
 
   publish:
     needs: [draft, build]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, foundry]
     steps:
       - name: Publish the release (installed copies pick it up from here)
         env:

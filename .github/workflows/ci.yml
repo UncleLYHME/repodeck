@@ -10,7 +10,9 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Foundry's self-hosted runner. Pull requests from forks stay on GitHub's runners; the repo also
+    # requires approval before any outside contributor's workflow runs, since a fork can edit this file.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","foundry"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

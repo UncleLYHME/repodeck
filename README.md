@@ -158,6 +158,8 @@ Releases are automatic: push to `main`. When [CI](.github/workflows/ci.yml) pass
 2. writes the notes: that CHANGELOG section if there is one, otherwise the `feat`/`fix`/`perf` commit subjects since the last release;
 3. builds Linux, macOS and Windows installers, attaches them to a GitHub release and publishes it. Installed copies offer it within 15 minutes.
 
+CI, the release bookkeeping and the Linux installers run on Foundry's self-hosted runner (labels `self-hosted, foundry`); the macOS and Windows installers build on GitHub's runners. Pull requests from forks run on GitHub's runners, and every outside contributor's workflow run waits for approval, because a fork can edit the workflow files.
+
 Run it by hand from the Actions tab (**Release → Run workflow**, optionally *force*) to release without a new change.
 
 README screenshots come from a made-up deck: `pnpm build && xvfb-run -a node scripts/screenshots.mjs`.
