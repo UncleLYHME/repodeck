@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.0 — 2026-10-06
+
+- RepoDeck now comes as an installer for Linux (AppImage and .deb), macOS (Apple Silicon and Intel) and Windows, published on GitHub Releases.
+- Installed copies keep themselves up to date: Windows and the AppImage download new versions in the background and restart into them with one click; the macOS app and the .deb offer the download.
+- Motion that tells you what's happening: the refresh button spins until everything has been re-read, new changes and notifications slide in, counts pulse when they change, folders animate open and closed, and charts grow in. Reduced-motion settings are respected.
+- Works with the paths, PATH and login items of macOS and Windows, and Home lists running dev servers on macOS too.
+- Clearer message when the GitHub CLI isn't signed in.
+- The old GTK version has been removed.
+
 ## 2.0.0 — 2026-10-06
 
 - RepoDeck is now an Electron app (React and TypeScript), the first step to running on macOS and Windows too. Everything from 1.x is here: Home, project analytics, the Projects deck, Activity, Preferences, background fetch and auto-pull, compare, hunks, branches, stash and ignore.
