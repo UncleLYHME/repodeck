@@ -5,6 +5,7 @@
 - RepoDeck is now an Electron app (React and TypeScript), the first step to running on macOS and Windows too. Everything from 1.x is here: Home, project analytics, the Projects deck, Activity, Preferences, background fetch and auto-pull, compare, hunks, branches, stash and ignore.
 - Your folders, settings and activity log carry over; `repodeck`, the app-menu entry and Start on Login now open the new app.
 - Much lighter while it sits open: near-zero CPU when idle and less memory than the GTK version.
+- Works on small screens too (say, over RDP from a phone): the window opens inside the visible desktop, and in narrow windows the sidebar becomes a drawer and cards stack.
 - History draws only the rows on screen, so long histories scroll smoothly; Home's running services show the program (node, python3) instead of a thread name.
 - The first start after this update builds the app, which takes a few seconds. The GTK version is still available with `REPODECK_LEGACY=1 python3 -m repodeck`.
 

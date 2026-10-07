@@ -136,6 +136,7 @@ test('preferences save to repos.json and survive a restart', async () => {
   await expect.poll(() => JSON.parse(readFileSync(file, 'utf8')).banner_motion).toBe(false)
   await app.close()
   ;({ app, win } = await launch(f))
+  await expect(win.getByRole('heading', { name: "What's happening across your projects?" })).toBeVisible() // loaded
   await win.keyboard.press('Control+,')
   await expect(win.getByRole('switch', { name: 'Animated Banner' })).not.toBeChecked()
 })

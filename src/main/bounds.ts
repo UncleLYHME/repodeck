@@ -22,16 +22,24 @@ export function configDir(): string {
 
 const file = () => join(configDir(), 'window.json')
 
+/** The saved size and place, kept on a screen that exists now and no larger than it (xrdp sessions change size). */
 export function loadBounds(): Bounds {
-  const fallback: Bounds = { width: 1600, height: 980 }
+  let b: Bounds = { width: 1600, height: 980 }
   try {
-    const b = JSON.parse(readFileSync(file(), 'utf8')) as Bounds
-    const visible = screen.getAllDisplays().some(({ workArea: a }) =>
-      b.x !== undefined && b.y !== undefined && b.x < a.x + a.width && b.x + b.width > a.x && b.y < a.y + a.height && b.y + b.height > a.y)
-    return visible ? b : { width: b.width, height: b.height, maximized: b.maximized }
+    b = { ...b, ...(JSON.parse(readFileSync(file(), 'utf8')) as Bounds) }
   } catch {
-    return fallback
+    // first run
   }
+  const displays = screen.getAllDisplays()
+  const home = displays.find(({ workArea: a }) =>
+    b.x !== undefined && b.y !== undefined && b.x < a.x + a.width && b.x + b.width > a.x && b.y < a.y + a.height && b.y + b.height > a.y)
+  const area = (home ?? screen.getPrimaryDisplay()).workArea
+  const width = Math.min(b.width, area.width)
+  const height = Math.min(b.height, area.height)
+  if (!home) return { x: area.x, y: area.y, width, height, maximized: b.maximized } // fill the free space, not the monitor
+  const x = Math.min(Math.max(b.x!, area.x), area.x + area.width - width)
+  const y = Math.min(Math.max(b.y!, area.y), area.y + area.height - height)
+  return { x, y, width, height, maximized: b.maximized }
 }
 
 export function saveBounds(win: BrowserWindow): void {

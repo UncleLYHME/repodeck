@@ -112,8 +112,8 @@ function createWindow(): void {
   const bounds = loadBounds()
   win = new BrowserWindow({
     ...bounds,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 400,
+    minHeight: 420,
     show: false,
     title: 'RepoDeck',
     backgroundColor: '#17181b',

@@ -93,8 +93,8 @@ export function ProjectPage() {
   return (
     <div ref={scroller} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-[1040px] flex-col gap-3 px-4 pt-6 pb-8">
-        <header className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
+        <header className="flex flex-wrap items-start gap-3">
+          <div className="min-w-[240px] flex-1">
             <h2 className="ellipsis text-[26px] font-bold tracking-tight">{pinned ? '★ ' : ''}{basename(path)}</h2>
             <p className="mono ellipsis-start"><bdi>{path}</bdi></p>
             {st && (
@@ -114,7 +114,7 @@ export function ProjectPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 @3xl:grid-cols-4">
           <Tile caption="Commits · 30 days" value={s ? String(s.commits30) : undefined} sub={`${trend} the previous 30 days`} />
           <Tile caption="Lines changed · 30 days" value={s ? short(s.added30 + s.deleted30) : undefined}
             sub={s ? `+${short(s.added30)} added · −${short(s.deleted30)} removed` : ''} />
@@ -127,7 +127,7 @@ export function ProjectPage() {
           {!s ? <SkeletonRows n={4} lead="none" /> : <><Bars days={s.days} height={96} /><DateTicks days={s.days} /></>}
         </Card>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">
           <Card title="When commits happen · last 90 days" icon={<Clock size={14} />}>
             <Heatmap punchcard={s?.punchcard ?? []} />
           </Card>

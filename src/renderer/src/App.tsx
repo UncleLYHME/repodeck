@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderPlus, ListCollapse, ListTree, Menu as MenuIcon, RefreshCw } from 'lucide-react'
+import { FolderPlus, ListCollapse, ListTree, Menu as MenuIcon, PanelLeft, RefreshCw } from 'lucide-react'
 import { basename } from '@shared/time'
 import { api, host } from './bridge'
 import { addFolders, chooseFolders, refreshNow, showPage, useStore } from './store'
@@ -17,7 +17,7 @@ import { IdentityDialog } from './deck/IdentityDialog'
 
 const TITLES = { home: 'Home', projects: 'Projects', activity: 'Activity', project: '' }
 
-function Header() {
+function Header({ narrow }: { narrow: boolean }) {
   const page = useStore((s) => s.page)
   const projectPath = useStore((s) => s.projectPath)
   const anyOpen = useStore((s) => s.deck?.groups.some((g) => g.expanded) ?? false)
@@ -27,8 +27,14 @@ function Header() {
       className="drag flex h-[46px] flex-none items-center gap-2 border-b border-line pl-3"
       style={{ paddingRight: 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 10px)' }}
     >
-      <button className="btn btn-flat" onClick={() => void chooseFolders()} title="Add a repository or a folder of repositories (Ctrl+O)">
-        <FolderPlus size={16} /> Add Folder
+      {narrow && (
+        <button className="icon-btn" onClick={() => useStore.setState({ sideOpen: true })} title="Show the sidebar" aria-label="Show the sidebar">
+          <PanelLeft size={17} />
+        </button>
+      )}
+      <button className="btn btn-flat" onClick={() => void chooseFolders()} title="Add a repository or a folder of repositories (Ctrl+O)"
+        aria-label="Add Folder">
+        <FolderPlus size={16} /> {!narrow && 'Add Folder'}
       </button>
       <div className="min-w-0 flex-1 text-center">
         <h1 className="ellipsis text-[14px] font-bold">{title}</h1>
@@ -117,16 +123,40 @@ function useDrop(): boolean {
   return over
 }
 
+/** True while the window is narrower than `px` (phones over RDP, split screens). */
+function useNarrow(px: number): boolean {
+  const query = `(max-width: ${px - 1}px)`
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const m = window.matchMedia(query)
+    const on = () => setNarrow(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [query])
+  return narrow
+}
+
 export function App() {
   const ready = useStore((s) => s.ready)
+  const sideOpen = useStore((s) => s.sideOpen)
+  const narrow = useNarrow(820)
   useShortcuts()
   const dropping = useDrop()
   return (
-    <div className="grid h-full grid-cols-[224px_minmax(0,1fr)]">
-      <Sidebar />
+    <div className={`grid h-full ${narrow ? 'grid-cols-1' : 'grid-cols-[224px_minmax(0,1fr)]'}`}>
+      {!narrow && <Sidebar />}
+      {narrow && sideOpen && (
+        <>
+          <div className="modal-backdrop z-40" onClick={() => useStore.setState({ sideOpen: false })} />
+          <div className="fixed inset-y-0 left-0 z-50 flex w-[260px] shadow-2xl shadow-black/60"
+            onKeyDown={(e) => e.key === 'Escape' && useStore.setState({ sideOpen: false })}>
+            <div className="grid w-full"><Sidebar /></div>
+          </div>
+        </>
+      )}
       <main className="flex min-h-0 min-w-0 flex-col">
-        <Header />
-        <div className="relative min-h-0 flex-1">{ready ? <Page /> : null}</div>
+        <Header narrow={narrow} />
+        <div className="@container relative min-h-0 flex-1">{ready ? <Page /> : null}</div>
       </main>
       {dropping && (
         <div className="pointer-events-none fixed inset-3 z-50 grid place-items-center rounded-2xl border-2 border-dashed border-accent bg-accent/10">

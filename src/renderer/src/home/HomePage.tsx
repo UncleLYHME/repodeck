@@ -32,7 +32,7 @@ function Composer() {
     openProject(p)
   }
   return (
-    <div className="w-[460px] max-w-[calc(100vw-300px)] rounded-[14px] border border-line bg-card/95 p-2 shadow-[0_10px_30px_rgb(0_0_0/0.45)]">
+    <div className="w-[460px] max-w-[calc(100%-32px)] rounded-[14px] border border-line bg-card/95 p-2 shadow-[0_10px_30px_rgb(0_0_0/0.45)]">
       <input className="field h-[38px] border-0 bg-transparent text-[14px]" placeholder="Jump to a project…" value={query} aria-label="Jump to a project"
         onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && found[0] && open(found[0])} />
       {q && (
@@ -69,10 +69,10 @@ function HeroBlock() {
       <Hero motion={motion} onPhase={onPhase} />
       <div className="absolute inset-x-0 bottom-1.5 flex flex-col items-center gap-2.5">
         {/* A translucent strip keeps the text readable over any sky, day or night. */}
-        <div className="flex flex-col items-center gap-1 rounded-[14px] border border-line bg-card/[0.82] px-7 pt-2.5 pb-3 shadow-[0_10px_30px_rgb(0_0_0/0.35)]">
+        <div className="mx-4 flex max-w-[calc(100%-32px)] flex-col items-center gap-1 rounded-[14px] border border-line bg-card/[0.82] px-7 pt-2.5 pb-3 shadow-[0_10px_30px_rgb(0_0_0/0.35)]">
           <p className="text-[11px] font-extrabold tracking-[0.12em] text-white/80 uppercase">{hello}</p>
-          <h2 className="text-[24px] font-bold">What's happening across your projects?</h2>
-          <p className="text-white/65">{parts.join(' · ')}</p>
+          <h2 className="text-center text-[24px] leading-tight font-bold">What's happening across your projects?</h2>
+          <p className="text-center text-white/65">{parts.join(' · ')}</p>
         </div>
         <Composer />
       </div>
@@ -118,7 +118,7 @@ export function HomePage() {
   return (
     <div className="h-full overflow-y-auto">
       <HeroBlock />
-      <div className="mx-auto grid max-w-[980px] grid-cols-2 gap-3 px-4 pt-7 pb-8">
+      <div className="mx-auto grid max-w-[980px] grid-cols-1 gap-3 px-4 pt-7 pb-8 @2xl:grid-cols-2">
         <Card title="Working now" icon={<FilePen size={14} />} count={dirty.length} note={more(dirty.length)}>
           {!dirty.length && <Empty>Nothing uncommitted. Every project is clean.</Empty>}
           {dirty.slice(0, SHOW).map((r) => {

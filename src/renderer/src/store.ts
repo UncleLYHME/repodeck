@@ -53,6 +53,7 @@ interface State {
   alert: { heading: string; body: string } | null
   identityFor: string | null
   prefsOpen: boolean
+  sideOpen: boolean // the sidebar drawer in narrow windows
 }
 
 export const useStore = create<State>(() => ({
@@ -79,6 +80,7 @@ export const useStore = create<State>(() => ({
   alert: null,
   identityFor: null,
   prefsOpen: false,
+  sideOpen: false,
 }))
 
 const set = useStore.setState
@@ -160,12 +162,12 @@ export async function runOp(repo: string, action: () => Promise<string>): Promis
 // -- navigation ---------------------------------------------------------------------------------------
 
 export function showPage(page: Page): void {
-  set(page === 'activity' ? { page, unseenProblems: 0 } : { page })
+  set(page === 'activity' ? { page, unseenProblems: 0, sideOpen: false } : { page, sideOpen: false })
 }
 
 /** The analytics page for one repository. */
 export function showProject(path: string): void {
-  set({ page: 'project', projectPath: path })
+  set({ page: 'project', projectPath: path, sideOpen: false })
 }
 
 /** A repo's panel on the Projects page: open its folder, scroll to it and flash it. */
