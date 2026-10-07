@@ -1,4 +1,4 @@
-// Where RepoDeck keeps its files: the same XDG locations the Python version used, so settings,
+// Where RepoDeck keeps its files: the same XDG locations RepoDeck 1.x used, so settings,
 // the activity log and folder lists carry over. REPODECK_PROFILE suffixes them (tests, QA copies).
 
 import { homedir } from 'node:os'

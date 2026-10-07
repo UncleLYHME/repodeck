@@ -2,7 +2,7 @@
 
 Entries live in memory (newest last) and are appended to a JSON-lines file so the log
 survives restarts; the file is rewritten to the newest KEEP entries when it grows past twice that.
-The format is the Python version's, so the history carries over.
+The format is RepoDeck 1.x's, so older history carries over.
 */
 
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'

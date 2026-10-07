@@ -24,18 +24,12 @@ const CHANGELOG = `# Changelog
 describe('versions', () => {
   it('parses, compares and reads notes', () => {
     expect(parseVersion('{"name": "repodeck", "version": "1.10.2"}')).toBe('1.10.2')
-    expect(parseVersion('__version__ = "1.10.2"\n')).toBe('1.10.2')
     expect(parseVersion('nothing here')).toBeNull()
     expect(newer('1.10.0', '1.9.9')).toBe(true)
     expect(newer('1.0.0', '1.0.0')).toBe(false)
     expect(newer(null, '1.0.0')).toBe(false)
     expect(notesSince(CHANGELOG, '1.0.0')).toEqual(['Newest thing', 'Another', 'Middle thing'])
     expect(notesSince(CHANGELOG, '1.2.0')).toEqual([])
-  })
-
-  it('the Python version beacon matches package.json', () => {
-    const pkg = JSON.parse(readFileSync('package.json', 'utf8')).version
-    expect(parseVersion(readFileSync('repodeck/__init__.py', 'utf8'))).toBe(pkg)
   })
 })
 

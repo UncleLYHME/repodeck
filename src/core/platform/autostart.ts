@@ -1,4 +1,4 @@
-// Start on Login. Linux: an XDG autostart entry (same file the Python version wrote).
+// Start on Login. Linux: an XDG autostart entry (same file RepoDeck 1.x wrote).
 
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'

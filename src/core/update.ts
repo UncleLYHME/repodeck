@@ -26,7 +26,7 @@ export function parseVersion(text: string | null | undefined): string | null {
     const v = JSON.parse(text).version
     return typeof v === 'string' ? v : null
   } catch {
-    return /__version__\s*=\s*"([^"]+)"/.exec(text)?.[1] ?? null // the Python beacon file
+    return null
   }
 }
 

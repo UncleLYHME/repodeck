@@ -80,7 +80,7 @@ When the window is in the background, auto-pulls, newly fetched commits, new CI 
 
 ## Updates
 
-RepoDeck runs straight from its git checkout. A release is a commit that raises `version` in `package.json` (and the same number in `repodeck/__init__.py`, which 1.x installs still read), with its notes under a `## <version> — <date>` heading in `CHANGELOG.md`.
+RepoDeck runs straight from its git checkout. A release is a commit that raises `version` in `package.json`, with its notes under a `## <version> — <date>` heading in `CHANGELOG.md`.
 
 - When the checkout already holds a newer version (you pulled, or RepoDeck auto-pulled its own repo), a popup appears at once: **RepoDeck x.y.z is ready** → **Restart Now**.
 - Every 30 minutes RepoDeck quietly fetches its own repo; a newer version upstream shows **RepoDeck x.y.z is available** → **Restart to Update**, which fast-forwards the checkout first. If that isn't possible (local commits, or uncommitted edits to files the update changes) nothing is touched and the popup says why.
@@ -117,9 +117,4 @@ pnpm build        # into out/
 pnpm typecheck
 pnpm test         # vitest: git, sync, stats, cache, updater… against real temporary repos
 pnpm e2e          # Playwright drives the built app under Xvfb against scratch repos
-pnpm test:py      # the legacy GTK app's tests
 ```
-
-## RepoDeck 1.x (GTK)
-
-The previous Python/GTK app is in `repodeck/` and still runs with `REPODECK_LEGACY=1 python3 -m repodeck`. `python3 -m repodeck` itself now starts RepoDeck 2, so old launchers, autostart entries and a running 1.x's update popup lead to the new app.

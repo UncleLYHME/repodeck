@@ -1,4 +1,4 @@
-// Settings and the folder list, in the same repos.json the Python version wrote.
+// Settings and the folder list, in the same repos.json RepoDeck 1.x wrote.
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
