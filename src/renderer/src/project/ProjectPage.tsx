@@ -13,6 +13,7 @@ import { openProject, useStore } from '../store'
 import { Card, Dot, Empty, SkeletonRows, SubHead, throttle } from '../ui/bits'
 import { Bars, DateTicks, Heatmap, Meter, StackedBar, languageParts } from '../ui/charts'
 import { ActivityIcon, BranchIcon, CommitIcon, PullRequestIcon } from '../ui/icons'
+import { BranchView } from './BranchView'
 
 const GITHUB_MS = 5 * 60_000
 const FAILED = new Set(['failure', 'timed_out', 'startup_failure'])
@@ -49,20 +50,36 @@ export function ProjectPage() {
   const head = useStore((s) => s.histories[path]?.[0]?.fullSha)
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [gh, setGh] = useState<ProjectGithub | null>(null)
+  const [picked, setPicked] = useState<string | null>(null) // a branch whose stats are shown instead of the checked-out one
   const scroller = useRef<HTMLDivElement>(null)
+  const current = state?.status?.branch ?? ''
+  const viewing = picked && picked !== current ? picked : null
+  const shown = useRef(viewing)
+  shown.current = viewing
 
   // Another project: skeletons instead of the previous project's numbers.
   useEffect(() => {
     setStats(null)
     setGh(null)
+    setPicked(null)
     scroller.current?.scrollTo(0, 0)
   }, [path])
 
   const reload = useMemo(() => throttle(600, () => {
     const p = useStore.getState().projectPath
-    if (p) void api.projectStats(p).then((s) => useStore.getState().projectPath === p && setStats(s), () => {})
+    const branch = shown.current
+    if (!p) return
+    void api.projectStats(p, branch ?? undefined).then(
+      (s) => useStore.getState().projectPath === p && shown.current === branch && setStats(s),
+      () => branch && shown.current === branch && setPicked(null), // the branch is gone: back to the checked-out one
+    )
   }), [])
-  useEffect(reload, [reload, path, head, state?.status?.oid, state?.status?.branch])
+  useEffect(reload, [reload, path, head, state?.status?.oid, current, viewing])
+  const view = (branch: string | null) => {
+    if (branch === viewing) return
+    setStats(null) // skeletons until that branch's numbers arrive
+    setPicked(branch)
+  }
 
   useEffect(() => {
     let live = true
@@ -99,11 +116,20 @@ export function ProjectPage() {
             <p className="mono ellipsis-start"><bdi>{path}</bdi></p>
             {st && (
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <span className="branch-pill">{st.branch}</span>
-                <span className="meta">{st.upstream ? `↑${st.ahead} ↓${st.behind}` : 'no upstream'}</span>
-                <Dot kind={st.changes.length ? 'busy' : 'ok'} />
-                <span className="meta">{st.changes.length ? plural(st.changes.length, 'uncommitted change') : 'clean'}</span>
-                {state?.pending && <span className="pending-pill" title={state.pending.why}>{state.pending.label}</span>}
+                <BranchView repo={path} current={current} viewing={viewing} onPick={view} />
+                {viewing ? (
+                  <>
+                    <span className="meta">not checked out</span>
+                    <button className="text-[12.5px] font-semibold text-accent-fg hover:underline" onClick={() => view(null)}>Back to {current}</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="meta">{st.upstream ? `↑${st.ahead} ↓${st.behind}` : 'no upstream'}</span>
+                    <Dot kind={st.changes.length ? 'busy' : 'ok'} />
+                    <span className="meta">{st.changes.length ? plural(st.changes.length, 'uncommitted change') : 'clean'}</span>
+                    {state?.pending && <span className="pending-pill" title={state.pending.why}>{state.pending.label}</span>}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -123,7 +149,7 @@ export function ProjectPage() {
             sub={s ? `commits since ${since} · ${plural(s.authors.length, 'contributor')}` : ''} />
         </div>
 
-        <Card title="Activity · last 30 days" icon={<ActivityIcon size={14} />}>
+        <Card title="Activity · last 30 days" icon={<ActivityIcon size={14} />} note={viewing ? `On ${viewing}` : 'All branches'}>
           {!s ? <SkeletonRows n={4} lead="none" /> : <><Bars days={s.days} height={96} /><DateTicks days={s.days} /></>}
         </Card>
 
@@ -158,15 +184,16 @@ export function ProjectPage() {
             ))}
           </Card>
           <Card title="Branches" icon={<BranchIcon size={14} />} count={s?.branches.length} note={s && s.branches.length > 6 ? `+${s.branches.length - 6} more` : undefined}>
-            {!s ? <SkeletonRows /> : s.branches.slice(0, 6).map(([name, ts, track, current]) => {
+            {!s ? <SkeletonRows /> : s.branches.slice(0, 6).map(([name, ts, track, checkedOut]) => {
               const stale = now - ts > 30 * 86400
               return (
-                <div key={name} className="dash-row" title={stale ? 'No commits for 30+ days' : undefined}>
-                  <Dot kind={current ? 'ok' : stale ? 'idle' : 'sync'} />
-                  <span className="ellipsis flex-1">{name}</span>
+                <button key={name} className="dash-row" aria-current={name === (viewing ?? current) || undefined}
+                  title={`See ${name}'s stats${stale ? ' · no commits for 30+ days' : ''}`} onClick={() => view(checkedOut ? null : name)}>
+                  <Dot kind={checkedOut ? 'ok' : stale ? 'idle' : 'sync'} />
+                  <span className={`ellipsis flex-1 text-left ${name === viewing ? 'font-semibold text-accent-fg' : ''}`}>{name}</span>
                   {track && <span className="mono">{track}</span>}
-                  <span className="meta whitespace-nowrap">{current ? 'current · ' : ''}{ago(ts, now)}</span>
-                </div>
+                  <span className="meta whitespace-nowrap">{checkedOut ? 'current · ' : name === viewing ? 'showing · ' : ''}{ago(ts, now)}</span>
+                </button>
               )
             })}
           </Card>

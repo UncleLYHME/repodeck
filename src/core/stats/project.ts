@@ -41,11 +41,11 @@ function mostCommon<K>(counts: Map<K, number>, n?: number): [K, number][] {
   return n === undefined ? sorted : sorted.slice(0, n)
 }
 
-async function windowed(repo: string, today: string): Promise<ProjectStats> {
+async function windowed(repo: string, today: string, ref?: string): Promise<ProjectStats> {
   const s = emptyStats(today)
   const start = addDays(today, -(WINDOW - 1))
-  const out = await run(repo, ['log', '--branches', '--remotes', '--tags', '--no-merges', `--since=${start} 00:00`,
-    '--format=\x1e%H\x1f%at\x1f%an\x1f%s', '--numstat'])
+  const out = await run(repo, ['log', ...(ref ? [ref] : ['--branches', '--remotes', '--tags']), '--no-merges', `--since=${start} 00:00`,
+    '--format=\x1e%H\x1f%at\x1f%an\x1f%s', '--numstat', '--'])
   const perDay = new Map<string, number>()
   const files = new Map<string, number>()
   const churn = new Map<string, number>()
@@ -105,10 +105,10 @@ export function languages(sizesByPath: Record<string, number>): [string, number]
   return rest > 0 ? [...top, [OTHER, rest]] : top
 }
 
-/** {path: size} of every file in HEAD's tree (committed sizes; no disk access). */
-export async function treeSizes(repo: string): Promise<Record<string, number>> {
+/** {path: size} of every file in a commit's tree, HEAD by default (committed sizes; no disk access). */
+export async function treeSizes(repo: string, tip = 'HEAD'): Promise<Record<string, number>> {
   const sizes: Record<string, number> = {}
-  for (const line of (await run(repo, ['ls-tree', '-r', '-l', '-z', 'HEAD'])).split('\0')) {
+  for (const line of (await run(repo, ['ls-tree', '-r', '-l', '-z', tip])).split('\0')) {
     const tab = line.indexOf('\t')
     if (tab < 0) continue
     const parts = line.slice(0, tab).split(/\s+/)
@@ -166,15 +166,30 @@ export function mergeAuthors(shortlog: string): [string, number][] {
   return mostCommon(totals).map(([root, n]) => [mostCommon(spellings.get(root)!, 1)[0][0], n])
 }
 
-export async function computeProject(repo: string, today: string): Promise<ProjectStats> {
+/** The full ref of a local or remote-tracking branch ("main", "origin/feature"), so git reads it as nothing else. */
+export async function branchRef(repo: string, branch: string): Promise<string> {
+  for (const ref of [`refs/heads/${branch}`, `refs/remotes/${branch}`]) {
+    const found = await run(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { check: false })
+    if (found.trim()) return ref
+  }
+  throw new Error(`No branch named ${branch}`)
+}
+
+/**
+ * Without `branch`: the 30/90-day activity of every branch, totals and languages of what's checked out.
+ * With one: everything from that branch's history and files, without checking it out.
+ */
+export async function computeProject(repo: string, today: string, branch?: string): Promise<ProjectStats> {
   const st = await status(repo)
   if (!hasCommits(st)) return emptyStats(today)
+  const ref = branch && branch !== st.branch ? await branchRef(repo, branch) : undefined
+  const tip = ref ?? 'HEAD'
   const [s, total, roots, shortlog, sizes, refs] = await Promise.all([
-    windowed(repo, today),
-    run(repo, ['rev-list', '--count', 'HEAD']),
-    run(repo, ['log', '--max-parents=0', '--format=%at', 'HEAD']),
-    run(repo, ['shortlog', '-sne', '--no-merges', 'HEAD']),
-    treeSizes(repo),
+    windowed(repo, today, ref),
+    run(repo, ['rev-list', '--count', tip, '--']),
+    run(repo, ['log', '--max-parents=0', '--format=%at', tip, '--']),
+    run(repo, ['shortlog', '-sne', '--no-merges', tip, '--']),
+    treeSizes(repo, tip),
     run(repo, ['for-each-ref', '--sort=-committerdate', 'refs/heads', '--format=%(refname:short)\x1f%(committerdate:unix)\x1f%(upstream:track)']),
   ])
   s.totalCommits = Number(total.trim() || 0)
@@ -190,12 +205,12 @@ export async function computeProject(repo: string, today: string): Promise<Proje
 }
 
 /** Analytics for one repo, cached until its commits/branches/HEAD change (or the day rolls over). */
-export async function project(repo: string, today = localDate(new Date())): Promise<ProjectStats> {
-  const key = `project:${repo}`
+export async function project(repo: string, today = localDate(new Date()), branch?: string): Promise<ProjectStats> {
+  const key = branch ? `project:${repo}:${branch}` : `project:${repo}`
   const version = `${await fingerprint(repo)}:${today}`
   const [cached] = cache().get<ProjectStats>(key, { version })
   if (cached) return cached
-  const s = await computeProject(repo, today)
+  const s = await computeProject(repo, today, branch)
   cache().put(key, s, version)
   return s
 }

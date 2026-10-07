@@ -49,7 +49,7 @@ export const api = {
   dashboardActivity: () => call<DashboardActivity>('dashboardActivity'),
   services: () => call<Services>('services'),
   github: (force = false) => call<GithubDashboard>('github', { force }),
-  projectStats: (repo: string) => call<ProjectStats>('projectStats', { repo }),
+  projectStats: (repo: string, branch?: string) => call<ProjectStats>('projectStats', { repo, branch }),
   projectGithub: (repo: string, force = false) => call<ProjectGithub>('projectGithub', { repo, force }),
   projectGithubCached: (repo: string) => call<ProjectGithub | null>('projectGithubCached', { repo }),
 

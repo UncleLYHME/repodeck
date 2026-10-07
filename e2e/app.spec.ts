@@ -128,6 +128,19 @@ test('the project page shows analytics', async () => {
   await expect(win.getByRole('region', { name: 'Languages' }).getByText('TypeScript')).toBeVisible()
 })
 
+test("the project page's branch pill shows another branch's stats without checking it out", async () => {
+  const current = git(f.alpha, 'branch', '--show-current').trim()
+  git(f.alpha, 'branch', 'older', 'HEAD~1')
+  const allTime = win.getByRole('region', { name: 'All time' })
+  await win.getByRole('button', { name: /^Stats for branch / }).click()
+  await win.getByRole('button', { name: 'older', exact: true }).click()
+  await expect(allTime.getByText('2', { exact: true })).toBeVisible()
+  await expect(win.getByText('not checked out')).toBeVisible()
+  expect(git(f.alpha, 'branch', '--show-current').trim()).toBe(current)
+  await win.getByRole('button', { name: `Back to ${current}` }).click()
+  await expect(allTime.getByText('3', { exact: true })).toBeVisible()
+})
+
 test('the refresh button spins until the refresh is done', async () => {
   const button = win.getByRole('button', { name: 'Refresh all' })
   const icon = button.locator('svg')

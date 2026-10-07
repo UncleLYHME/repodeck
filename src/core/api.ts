@@ -140,7 +140,7 @@ export function handlers(deck: Deck, github: GithubWatch, updates: CheckoutUpdat
     dashboardActivity: () => dashboardActivity(deck.allPaths()),
     services: () => services(deck.allPaths()),
     github: ({ force }: { force?: boolean } = {}) => (force || !github.result ? github.refresh(force) : github.result),
-    projectStats: ({ repo: path }: { repo: string }) => (repo(path), project(path)),
+    projectStats: ({ repo: path, branch }: { repo: string; branch?: string }) => (repo(path), project(path, undefined, branch || undefined)),
     projectGithub: ({ repo: path, force }: { repo: string; force?: boolean }) => (repo(path), projectGithub(path, force)),
     projectGithubCached: ({ repo: path }: { repo: string }) => (repo(path), projectGithubCached(path)),
 

@@ -41,6 +41,32 @@ describe('project stats', () => {
     expect(Math.abs(s.firstCommit - Math.floor(now - 40 * 86400))).toBeLessThanOrEqual(1)
   })
 
+  it("shows another branch's history and files without checking it out", async () => {
+    const repo = tempDir()
+    await run(repo, ['init', '-q', '-b', 'main'])
+    const now = Date.now() / 1000
+    writeFileSync(join(repo, 'app.py'), 'print(1)\n')
+    await commitAt(repo, 'base', now - 2 * 86400)
+    await run(repo, ['switch', '-qc', 'feature'])
+    writeFileSync(join(repo, 'page.html'), '<p>hi</p>\n'.repeat(20))
+    await commitAt(repo, 'feature work', now - 86400)
+    writeFileSync(join(repo, 'page.html'), '<p>hello</p>\n'.repeat(20))
+    await commitAt(repo, 'more feature work', now)
+    await run(repo, ['switch', '-q', 'main'])
+    await run(repo, ['update-ref', 'refs/remotes/origin/feature', 'feature'])
+
+    const feature = await project(repo, undefined, 'feature')
+    expect(feature.totalCommits).toBe(3)
+    expect(feature.recent.map(([, subject]) => subject)).toEqual(['more feature work', 'feature work', 'base'])
+    expect(feature.languages.map(([lang]) => lang)).toEqual(['HTML', 'Python'])
+    expect((await project(repo, undefined, 'origin/feature')).totalCommits).toBe(3)
+
+    const main = await project(repo, undefined, 'main') // the checked-out branch: the usual page
+    expect([main.totalCommits, main.languages.map(([lang]) => lang)]).toEqual([1, ['Python']])
+    expect((await run(repo, ['branch', '--show-current'])).trim()).toBe('main')
+    await expect(project(repo, undefined, '--output=/tmp/x')).rejects.toThrow('No branch named')
+  })
+
   it('handles an empty repo', async () => {
     const repo = tempDir()
     await run(repo, ['init', '-q'])
