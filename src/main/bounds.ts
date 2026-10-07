@@ -1,9 +1,9 @@
 // Remember the window's size and place between runs.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { screen, type BrowserWindow } from 'electron'
+import { configDir } from './dirs'
 
 interface Bounds {
   x?: number
@@ -11,13 +11,6 @@ interface Bounds {
   width: number
   height: number
   maximized?: boolean
-}
-
-/** RepoDeck's settings folder (the core uses the same rule; see src/core/paths.ts). */
-export function configDir(): string {
-  const base = process.env.XDG_CONFIG_HOME?.startsWith('/') ? process.env.XDG_CONFIG_HOME : join(homedir(), '.config')
-  const profile = process.env.REPODECK_PROFILE ? `-${process.env.REPODECK_PROFILE}` : ''
-  return join(base, `repodeck${profile}`)
 }
 
 const file = () => join(configDir(), 'window.json')

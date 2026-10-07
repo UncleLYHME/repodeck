@@ -2,7 +2,7 @@
 
 import { ChevronDown } from 'lucide-react'
 import type { Change, RepoState } from '@shared/types'
-import { api } from '../bridge'
+import { api, keys } from '../bridge'
 import { runOp, setDraft, useStore } from '../store'
 import { MenuButton } from '../ui/menu'
 
@@ -28,7 +28,7 @@ export function CommitBox({ repo, state, selected }: { repo: string; state: Repo
       <div className="flex items-start gap-1.5">
         <textarea
           className="field min-h-[38px] max-h-[150px] flex-1 resize-none py-2 leading-[1.35] [field-sizing:content]"
-          placeholder="Message (Ctrl+Enter to commit)"
+          placeholder={`Message (${keys('Ctrl+Enter')} to commit)`}
           aria-label="Commit message"
           value={draft}
           onChange={(e) => setDraft(repo, e.target.value)}
@@ -41,14 +41,14 @@ export function CommitBox({ repo, state, selected }: { repo: string; state: Repo
         />
         <div className="flex">
           <button className="btn btn-primary h-[38px] rounded-r-none pr-2.5" disabled={!ok} onClick={() => void commit(repo, selected, false)}
-            title="Commit the checked files (Ctrl+Enter)">
+            title={`Commit the checked files (${keys('Ctrl+Enter')})`}>
             {n ? `Commit ${n}` : 'Commit'}
           </button>
           <MenuButton
             label="More commit options"
             className="btn btn-primary h-[38px] rounded-l-none border-l border-black/25 px-1.5"
             icon={<ChevronDown size={15} />}
-            sections={[[{ label: 'Commit & Push (Ctrl+Shift+Enter)', disabled: !ok, onClick: () => void commit(repo, selected, true) }]]}
+            sections={[[{ label: `Commit & Push (${keys('Ctrl+Shift+Enter')})`, disabled: !ok, onClick: () => void commit(repo, selected, true) }]]}
           />
         </div>
       </div>

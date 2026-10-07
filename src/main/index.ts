@@ -5,14 +5,19 @@ import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import {
-  app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, Notification, shell, utilityProcess,
+  app, BrowserWindow, dialog, ipcMain, MessageChannelMain, Notification, shell, utilityProcess,
   type IpcMainInvokeEvent, type UtilityProcess,
 } from 'electron'
 import { Endpoint } from '../shared/rpc'
-import { configDir, loadBounds, saveBounds } from './bounds'
+import { loadBounds, saveBounds } from './bounds'
+import { configDir, dirsEnv } from './dirs'
+import { loginItem, loginPath, openInCode, setMenu } from './platform'
+import { Updater } from './updater'
 
-const APP_DIR = app.getAppPath() // the checkout: package.json, bin/, data/
+const APP_DIR = app.getAppPath() // the checkout (package.json, bin/, data/), or app.asar when installed
 const DEV_URL = process.env.ELECTRON_RENDERER_URL
+// A real file for notifications (the notification daemon can't read inside app.asar).
+const ICON = join(APP_DIR.replace(/app\.asar$/, 'app.asar.unpacked'), 'data/repodeck.png')
 
 // xrdp and VMs often have no GPU render node; software compositing avoids a crashing GPU process.
 const hasGpu = process.platform !== 'linux' || (existsSync('/dev/dri') && readdirSync('/dev/dri').some((n) => n.startsWith('renderD')))
@@ -25,6 +30,15 @@ let win: BrowserWindow | null = null
 let core: UtilityProcess | null = null
 let coreRpc: Endpoint | null = null
 let quitting = false
+const updater = new Updater(
+  (update) => {
+    win?.webContents.send('main-event', { name: 'update', data: update })
+    const title = update.source === 'download' ? `RepoDeck ${update.version} is ready` : `RepoDeck ${update.version} is available`
+    void coreRpc?.call('log', { message: title }).catch(() => {})
+    announce({ message: title, body: 'Open RepoDeck to update.', key: 'update', notify: true })
+  },
+  async () => ((await coreRpc?.call<{ updateChecks: boolean }>('settings', null, 5000)) ?? { updateChecks: true }).updateChecks,
+)
 
 const foldersIn = (argv: string[]) => argv.filter((a) => isAbsolute(a) && isDir(a) && a !== APP_DIR)
 
@@ -41,7 +55,10 @@ function isDir(p: string): boolean {
 function startCore(): void {
   core = utilityProcess.fork(join(__dirname, 'core.js'), [], {
     serviceName: 'RepoDeck Core',
-    env: { ...process.env, REPODECK_APP_DIR: APP_DIR, REPODECK_VERSION: app.getVersion() },
+    env: {
+      ...process.env, ...dirsEnv(), PATH: loginPath() ?? process.env.PATH ?? '',
+      REPODECK_APP_DIR: APP_DIR, REPODECK_VERSION: app.getVersion(), REPODECK_PACKAGED: app.isPackaged ? '1' : '',
+    },
   })
   const proc = core
   let deliver: ((m: unknown) => void) | null = null
@@ -50,6 +67,10 @@ function startCore(): void {
   coreRpc.handle({
     trash: async ({ path }: { path: string }) => shell.trashItem(path),
     relaunch: async () => relaunch(),
+    loginItem: async ({ on }: { on?: boolean }) => {
+      if (on !== undefined) loginItem.set(on)
+      return loginItem.get()
+    },
   })
   coreRpc.on('announce', (data) => announce(data as Announcement))
   proc.on('exit', () => {
@@ -89,7 +110,7 @@ function announce(a: Announcement): void {
     return
   }
   if (a.key) notes.get(a.key)?.close()
-  const note = new Notification({ title: a.message, body: a.body ?? '', icon: join(APP_DIR, 'data/repodeck.png') })
+  const note = new Notification({ title: a.message, body: a.body ?? '', icon: ICON })
   note.on('click', () => {
     if (a.uri && /^https?:\/\//.test(a.uri)) void shell.openExternal(a.uri)
     else win?.show()
@@ -98,8 +119,13 @@ function announce(a: Announcement): void {
   note.show()
 }
 
-/** Wait for this process to exit, then start RepoDeck again through its launcher (which rebuilds). */
+/** Start again: installed copies directly; a checkout through its launcher (which rebuilds) once this process is gone. */
 function relaunch(): void {
+  if (app.isPackaged) {
+    app.relaunch()
+    app.quit()
+    return
+  }
   const launcher = join(APP_DIR, 'bin/repodeck')
   const script = 'while kill -0 "$0" 2>/dev/null; do sleep 0.1; done; exec "$@"'
   spawn('sh', ['-c', script, String(process.pid), launcher], { cwd: app.getPath('home'), detached: true, stdio: 'ignore' }).unref()
@@ -118,8 +144,10 @@ function createWindow(): void {
     title: 'RepoDeck',
     backgroundColor: '#17181b',
     icon: join(APP_DIR, 'data/repodeck.png'),
-    titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#17181b', symbolColor: '#d7d9de', height: 46 },
+    // Our header is the title bar: traffic lights on macOS, window-control overlay elsewhere.
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 16, y: 15 } }
+      : { titleBarStyle: 'hidden' as const, titleBarOverlay: { color: '#17181b', symbolColor: '#d7d9de', height: 46 } }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -130,7 +158,10 @@ function createWindow(): void {
   })
   if (bounds.maximized) win.maximize()
   win.once('ready-to-show', () => win?.show())
-  win.webContents.on('did-finish-load', connect)
+  win.webContents.on('did-finish-load', () => {
+    connect()
+    if (updater.found) win?.webContents.send('main-event', { name: 'update', data: updater.found })
+  })
   if (process.env.REPODECK_DEBUG) {
     win.webContents.on('console-message', (e) => console.log(`[renderer ${e.level}] ${e.message} (${e.sourceId}:${e.lineNumber})`))
     win.webContents.on('render-process-gone', (_e, d) => console.log('[renderer gone]', d.reason))
@@ -175,8 +206,14 @@ function hostHandlers(): void {
   })
   handle('host:openInEditor', (path: string, file?: string) => {
     if (!isAbsolute(path) || !isDir(path)) throw new Error(`Not a folder: ${path}`)
-    const args = file ? ['-g', join(path, file)] : [path]
-    spawn('code', args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref()
+    openInCode(path, file)
+  })
+  handle('host:installUpdate', async () => {
+    if (updater.found?.source === 'download') {
+      quitting = true // the core is stopped here, so the quit that installs isn't held up
+      await coreRpc?.call('shutdown', null, 1500).catch(() => {})
+    }
+    updater.install()
   })
   handle('host:chooseFolders', async () => {
     const result = await dialog.showOpenDialog(win!, {
@@ -203,10 +240,11 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.whenReady().then(() => {
-    Menu.setApplicationMenu(null) // no default accelerators: Ctrl+R is "refresh repos", not "reload page"
+    setMenu()
     hostHandlers()
     startCore()
     createWindow()
+    updater.start()
   })
 
   app.on('window-all-closed', () => app.quit())

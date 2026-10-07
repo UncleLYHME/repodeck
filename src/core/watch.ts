@@ -11,6 +11,10 @@ import { basename, dirname, join } from 'node:path'
 import { run } from './git/run'
 
 export const MAX_DIRS = 4000 // per repository
+// macOS (FSEvents) and Windows watch a whole tree natively and cheaply; Linux (inotify) can't skip
+// ignored folders that way, so there one watch per non-ignored folder is kept instead.
+const NATIVE_TREE = process.platform === 'darwin' || process.platform === 'win32'
+const NOISE = /(^|[\\/])(node_modules|\.git[\\/]objects)([\\/]|$)|\.lock$/
 const GLOBAL_MAX = 30000 // the system limit (often 65536) is shared with editors and other tools
 let watching = 0
 
@@ -133,17 +137,29 @@ export class RepoWatcher {
   private change: Throttle
   private rescan: Throttle
   private dirs: DirWatcher
+  private tree: FSWatcher | null = null
   private closed = false
 
   constructor(readonly repo: string, onChange: () => void) {
     this.change = new Throttle(150, onChange)
     this.rescan = new Throttle(400, () => void this.scan()) // new folders need new watches
     this.dirs = new DirWatcher((path, kind) => this.event(path, kind))
-    void this.scan()
+    if (NATIVE_TREE) {
+      try {
+        this.tree = watch(repo, { recursive: true }, (_type, name) => {
+          if (!NOISE.test(name?.toString() ?? '')) this.change.call()
+        })
+        this.tree.on('error', () => {})
+      } catch {
+        this.tree = null
+      }
+    }
+    if (this.tree) this.change.call()
+    else void this.scan()
   }
 
   get count(): number {
-    return this.dirs.watchers.size
+    return this.tree ? 1 : this.dirs.watchers.size
   }
 
   private async scan(): Promise<void> {
@@ -170,6 +186,7 @@ export class RepoWatcher {
     this.change.cancel()
     this.rescan.cancel()
     this.dirs.close()
+    this.tree?.close()
   }
 }
 

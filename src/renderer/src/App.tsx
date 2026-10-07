@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FolderPlus, ListCollapse, ListTree, Menu as MenuIcon, PanelLeft, RefreshCw } from 'lucide-react'
 import { basename } from '@shared/time'
-import { api, host } from './bridge'
+import { api, host, isMac, keys } from './bridge'
 import { addFolders, chooseFolders, fetchAllNow, refreshNow, showPage, useStore } from './store'
 import { useSpin } from './ui/motion'
 import { Sidebar } from './Sidebar'
@@ -27,7 +27,7 @@ function Header({ narrow }: { narrow: boolean }) {
   const spin = useSpin(refreshing)
   return (
     <header
-      className="drag flex h-[46px] flex-none items-center gap-2 border-b border-line pl-3"
+      className={`drag flex h-[46px] flex-none items-center gap-2 border-b border-line ${narrow && isMac() ? 'pl-[78px]' : 'pl-3'}`}
       style={{ paddingRight: 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 10px)' }}
     >
       {narrow && (
@@ -35,7 +35,7 @@ function Header({ narrow }: { narrow: boolean }) {
           <PanelLeft size={17} />
         </button>
       )}
-      <button className="btn btn-flat" onClick={() => void chooseFolders()} title="Add a repository or a folder of repositories (Ctrl+O)"
+      <button className="btn btn-flat" onClick={() => void chooseFolders()} title={`Add a repository or a folder of repositories (${keys('Ctrl+O')})`}
         aria-label="Add Folder">
         <FolderPlus size={16} /> {!narrow && 'Add Folder'}
       </button>

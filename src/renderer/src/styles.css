@@ -45,6 +45,7 @@
 
 @layer components {
   .drag { -webkit-app-region: drag; }
+  html[data-platform="darwin"] .mac-traffic-pad { padding-left: 70px; } /* the window buttons sit here */
   .no-drag, .drag button, .drag input, .drag [role="button"] { -webkit-app-region: no-drag; }
 
   .btn {

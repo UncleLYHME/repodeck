@@ -1,0 +1,46 @@
+# Installers for Linux, macOS and Windows, published to GitHub Releases (see .github/workflows/release.yml).
+# Installed copies update themselves from there through electron-updater (src/main/updater.ts).
+appId: dev.foundry.RepoDeck
+productName: RepoDeck
+copyright: Copyright © 2026 UncleLYHME
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - "!out/**/*.map"
+  - "!out.next/**"
+  - package.json
+  - data/repodeck.png
+  - data/repodeck.svg
+asarUnpack:
+  - data/repodeck.png # notifications need a real file
+
+linux:
+  target: [AppImage, deb] # the AppImage updates itself; the .deb prompts you to download the new one
+  executableName: repodeck
+  category: Development
+  synopsis: Source control for many git repositories at once
+  desktop:
+    entry:
+      StartupWMClass: dev.foundry.RepoDeck
+deb:
+  depends: [git]
+
+mac:
+  target:
+    - { target: dmg, arch: [arm64, x64] }
+    - { target: zip, arch: [arm64, x64] }
+  category: public.app-category.developer-tools
+  identity: null # not signed yet: no Apple Developer ID; the app offers new versions as downloads
+
+win:
+  target: [{ target: nsis, arch: [x64] }]
+nsis:
+  artifactName: RepoDeck-Setup-${version}.${ext}
+
+publish:
+  provider: github
+  owner: UncleLYHME
+  repo: repodeck
+  releaseType: draft # CI creates the draft with the changelog, the platform jobs upload to it, then it's published

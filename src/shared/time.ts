@@ -56,7 +56,7 @@ export function parseDay(day: string): Date {
   return new Date(y, m - 1, d)
 }
 
-export const basename = (p: string): string => p.replace(/\/+$/, '').split('/').pop() || p
+export const basename = (p: string): string => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
 
 /** Parent folder of a repo-relative path, "" at the top level. */
 export function dirname(p: string): string {

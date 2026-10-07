@@ -41,7 +41,7 @@ export function Sidebar() {
 
   return (
     <aside className="flex min-h-0 flex-col border-r border-line bg-side">
-      <div className="drag flex h-[46px] flex-none items-center justify-center border-b border-line text-[14px] font-bold">RepoDeck</div>
+      <div className="drag flex h-[46px] flex-none items-center justify-center border-b border-line text-[14px] font-bold mac-traffic-pad">RepoDeck</div>
       <nav className="flex flex-col gap-0.5 px-2 pt-2" aria-label="Pages">
         <NavRow page="home" label="Home" icon={<House size={16} />} />
         <NavRow page="projects" label="Projects" icon={<LayoutGrid size={16} />} badge={dirty} />

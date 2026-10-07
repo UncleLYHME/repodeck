@@ -10,7 +10,9 @@ export interface RepoDeckBridge {
     chooseFolders(): Promise<string[]>
     initialFolders(): Promise<string[]>
     pathForFile(file: File): string
+    installUpdate(): Promise<void>
   }
+  platform: string
 }
 
 declare global {

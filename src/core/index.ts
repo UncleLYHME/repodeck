@@ -9,6 +9,7 @@ import { activity } from './activity'
 import { Deck } from './deck'
 import { GithubWatch, UpdateWatch } from './services'
 import { handlers } from './api'
+import { useLoginItems } from './platform/autostart'
 
 interface ParentPort {
   postMessage(message: unknown): void
@@ -45,7 +46,11 @@ const host = {
 }
 const deck = new Deck(host, appDir)
 const github = new GithubWatch(deck, host)
-const updates = new UpdateWatch(deck, host, version)
+// Installed copies update from GitHub Releases (main); a checkout updates itself through git.
+const updates = process.env.REPODECK_PACKAGED ? null : new UpdateWatch(deck, host, version)
+if (process.platform !== 'linux') {
+  useLoginItems({ get: () => main.call<boolean>('loginItem', {}), set: (on) => main.call<boolean>('loginItem', { on }) })
+}
 activity().subscribe((entry) => broadcast('activity', entry))
 
 const api = handlers(deck, github, updates, {
@@ -71,11 +76,13 @@ main.handle({
   shutdown: () => {
     cache().save() // don't lose results computed in the last seconds before quitting
     github.close()
-    updates.close()
+    updates?.close()
     deck.close()
     setTimeout(() => process.exit(0), 50)
   },
   windowFocused: () => deck.refreshAll(),
+  settings: () => deck.settings,
+  log: ({ message }: { message: string }) => void activity().add(message, null, 'auto'),
 })
 
 parent.on('message', (e) => {

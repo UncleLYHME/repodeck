@@ -2,4 +2,5 @@ packages:
   - "."
 allowBuilds:
   electron: true
+  electron-winstaller: false # Squirrel.Windows; RepoDeck ships NSIS
   esbuild: true

@@ -24,10 +24,11 @@ export async function gh<T>(...args: string[]): Promise<T> {
     r = await exec('gh', args, undefined, { timeout: 30_000, env: { GH_PROMPT_DISABLED: '1', NO_COLOR: '1' } })
   } catch (e) {
     const err = e as NodeJS.ErrnoException
-    throw new Error(err.code === 'ENOENT' ? 'gh is not installed' : err.message)
+    throw new Error(err.code === 'ENOENT' ? 'install the GitHub CLI (gh) to see pull requests and CI' : err.message)
   }
   if (r.code) {
     const text = (r.stderr || r.stdout).trim()
+    if (/gh auth login|GH_TOKEN|not logged in/i.test(text)) throw new Error('sign in with `gh auth login` to see pull requests and CI')
     throw new Error(text ? text.split('\n').pop()! : 'gh failed')
   }
   return JSON.parse(r.stdout || '[]') as T

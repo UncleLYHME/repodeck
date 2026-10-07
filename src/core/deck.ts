@@ -233,9 +233,9 @@ export class Deck {
 
   // -- settings -------------------------------------------------------------------------------
 
-  setSetting<K extends keyof Settings>(key: K, value: Settings[K]): void {
+  async setSetting<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
     if (key === 'autostart') {
-      setAutostart(Boolean(value), this.appDir)
+      await setAutostart(Boolean(value), this.appDir)
     } else {
       ;(this.settings as Record<string, unknown>)[key] = value
       if (key === 'autoPull' && value) for (const r of this.repos.values()) r.maybeAutoPull() // catch up on fetched commits

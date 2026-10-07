@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Download } from 'lucide-react'
 import { basename } from '@shared/time'
-import { api } from './bridge'
+import { api, host } from './bridge'
 import { confirm, useStore } from './store'
 
 export function UpdatePopup() {
@@ -12,9 +12,14 @@ export function UpdatePopup() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   if (!update || dismissed.includes(update.version)) return null
-  const ready = update.source === 'disk'
+  const ready = update.source === 'disk' || update.source === 'download'
+  const manual = update.source === 'manual'
 
   const restart = async () => {
+    if (manual) {
+      void host.openExternal(update.url ?? 'https://github.com/UncleLYHME/repodeck/releases/latest')
+      return
+    }
     const drafts = Object.entries(useStore.getState().drafts).filter(([, text]) => text.trim()).map(([repo]) => basename(repo))
     if (drafts.length) {
       const ok = await confirm({
@@ -26,7 +31,9 @@ export function UpdatePopup() {
     setBusy(true)
     setError(null)
     try {
-      await api.applyUpdate() // the app quits and starts again from here
+      // the app quits and starts again from here
+      if (update.source === 'download') await host.installUpdate()
+      else await api.applyUpdate()
     } catch (e) {
       setBusy(false)
       setError((e as Error).message)
@@ -49,7 +56,7 @@ export function UpdatePopup() {
       <div className="mt-1 flex justify-end gap-1.5">
         <button className="btn btn-flat" onClick={() => useStore.setState((s) => ({ dismissed: [...s.dismissed, update.version] }))}>Later</button>
         <button className="btn btn-primary pill" disabled={busy} onClick={() => void restart()}>
-          {busy && <span className="spinner" />} {ready ? 'Restart Now' : 'Restart to Update'}
+          {busy && <span className="spinner" />} {manual ? 'Download' : ready ? 'Restart Now' : 'Restart to Update'}
         </button>
       </div>
     </aside>

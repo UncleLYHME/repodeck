@@ -52,7 +52,9 @@ const api = {
     chooseFolders: (): Promise<string[]> => ipcRenderer.invoke('host:chooseFolders'),
     initialFolders: (): Promise<string[]> => ipcRenderer.invoke('host:initialFolders'),
     pathForFile: (file: File) => webUtils.getPathForFile(file),
+    installUpdate: () => ipcRenderer.invoke('host:installUpdate'),
   },
+  platform: process.platform,
 }
 
 contextBridge.exposeInMainWorld('repodeck', api)

@@ -121,8 +121,11 @@ export interface ActivityEntry {
 
 export interface UpdateInfo {
   version: string
-  source: 'disk' | 'remote'
+  // disk/remote: a git checkout (restart, or fast-forward then restart);
+  // download: an installed copy has downloaded it (restart installs); manual: open the download page
+  source: 'disk' | 'remote' | 'download' | 'manual'
   notes: string[]
+  url?: string
 }
 
 export interface Capabilities {

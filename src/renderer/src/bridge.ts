@@ -66,7 +66,14 @@ export const host = {
   chooseFolders: () => bridge().host.chooseFolders(),
   initialFolders: () => bridge().host.initialFolders(),
   pathForFile: (file: File) => bridge().host.pathForFile(file),
+  installUpdate: () => bridge().host.installUpdate(),
 }
+
+export const platform = (): string => window.repodeck?.platform ?? 'linux'
+export const isMac = (): boolean => platform() === 'darwin'
+/** "Ctrl+Enter" here, "⌘↩" on a Mac. */
+export const keys = (combo: string): string =>
+  isMac() ? combo.replace(/Ctrl\+Shift\+/g, '⇧⌘').replace(/Ctrl\+/g, '⌘').replace(/Shift\+/g, '⇧').replace(/Enter/g, '↩') : combo
 
 export interface CoreEvents {
   deck: DeckState

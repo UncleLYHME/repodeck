@@ -1,4 +1,5 @@
-// Start on Login. Linux: an XDG autostart entry (same file RepoDeck 1.x wrote).
+// Start on Login. Linux: an XDG autostart entry (same file RepoDeck 1.x wrote); macOS and Windows:
+// the system's login items, which only main can set.
 
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -12,12 +13,30 @@ export function launcher(appDir: string): string {
   return existsSync(installed) ? installed : join(appDir, 'bin/repodeck')
 }
 
-export function autostartEnabled(): boolean {
-  return process.platform === 'linux' && existsSync(entry())
+interface LoginItems {
+  get(): Promise<boolean>
+  set(on: boolean): Promise<boolean>
 }
 
-export function setAutostart(on: boolean, appDir: string): void {
-  if (process.platform !== 'linux') throw new Error('Start on Login is only available on Linux for now.')
+let loginItems: LoginItems | null = null
+let loginItemOn = false
+
+/** macOS/Windows: where to read and set the login item (main), and the current state. */
+export function useLoginItems(items: LoginItems): void {
+  loginItems = items
+  void items.get().then((on) => (loginItemOn = on), () => {})
+}
+
+export function autostartEnabled(): boolean {
+  return process.platform === 'linux' ? existsSync(entry()) : loginItemOn
+}
+
+export async function setAutostart(on: boolean, appDir: string): Promise<void> {
+  if (process.platform !== 'linux') {
+    if (!loginItems) throw new Error('Start on Login is not available here.')
+    loginItemOn = await loginItems.set(on)
+    return
+  }
   if (!on) {
     if (existsSync(entry())) unlinkSync(entry())
     return

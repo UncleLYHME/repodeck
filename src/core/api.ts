@@ -27,7 +27,8 @@ export interface Host {
 
 function onPath(cmd: string): boolean {
   try {
-    execFileSync('sh', ['-c', `command -v ${cmd}`], { stdio: 'ignore' })
+    if (process.platform === 'win32') execFileSync('where', [cmd], { stdio: 'ignore' })
+    else execFileSync('sh', ['-c', `command -v ${cmd}`], { stdio: 'ignore' })
     return true
   } catch {
     return false
@@ -45,7 +46,7 @@ const size = (p: string) => {
 /** A file-name fragment as a case-insensitive glob that matches it literally. */
 export const globLiteral = (q: string): string => q.replace(/[*?[\]\\]/g, (c) => `\\${c}`)
 
-export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch, host: Host, version: string) {
+export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch | null, host: Host, version: string) {
   const capabilities = { code: onPath('code'), platform: process.platform }
   const repo = (path: string) => deck.repo(path)
   const op = (path: string, msg: string, fn: (st: Awaited<ReturnType<typeof gitStatus>>) => Promise<unknown>) => repo(path).op(msg, fn)
@@ -53,7 +54,7 @@ export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch, 
   return {
     snapshot: (): Snapshot => ({
       deck: deck.state(), repos: deck.repoStates(), histories: deck.histories(), activity: activity().entries,
-      version, update: updates.found, capabilities, configDir: configDir(),
+      version, update: updates?.found ?? null, capabilities, configDir: configDir(),
     }),
 
     // -- deck ------------------------------------------------------------------------------
@@ -151,9 +152,9 @@ export function handlers(deck: Deck, github: GithubWatch, updates: UpdateWatch, 
       cacheBytes: size(cache().path), activityEntries: activity().entries.length,
       activityBytes: size(activity().path), configDir: configDir(),
     }),
-    checkUpdate: () => updates.check(),
+    checkUpdate: () => updates?.check() ?? null,
     applyUpdate: async () => {
-      if (!updates.found) throw new Error('No update to apply.')
+      if (!updates?.found) throw new Error('No update to apply.')
       await apply(deck.appDir, updates.found, version)
       activity().add(`Restarting into RepoDeck ${updates.found.version}`)
       cache().save()

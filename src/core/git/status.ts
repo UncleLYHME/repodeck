@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, normalize } from 'node:path'
 import type { Change, CommitFile, LogRow, Operation, RefKind, Status } from '../../shared/types'
 import { hasCommits } from '../../shared/changes'
 import { GitError, SEP, run, splitN } from './run'
@@ -67,7 +67,9 @@ export async function fingerprint(repo: string): Promise<string> {
 /** The repository root containing `path`, or null. */
 export async function toplevel(path: string): Promise<string | null> {
   try {
-    return (await run(path, ['rev-parse', '--show-toplevel'])).trim() || null
+    const top = (await run(path, ['rev-parse', '--show-toplevel'])).trim()
+    if (!top) return null
+    return process.platform === 'win32' ? normalize(top) : top // git answers C:/x on Windows; paths elsewhere are C:\x
   } catch {
     return null
   }
