@@ -9,6 +9,7 @@ import { releaseBullets } from './notes'
 export const RELEASES_URL = 'https://github.com/UncleLYHME/repodeck/releases/latest'
 const FIRST_CHECK_MS = 10_000
 const CHECK_EVERY_MS = 30 * 60_000
+const debug = (...args: unknown[]) => process.env.REPODECK_DEBUG && console.log('[updater]', ...args)
 
 /**
  * Copies that can replace themselves: Windows installs and Linux AppImages. The macOS app isn't
@@ -37,12 +38,15 @@ export class Updater {
     autoUpdater.on('update-downloaded', (info) => {
       this.report({ version: info.version, source: 'download', notes: releaseBullets(info.releaseNotes) })
     })
-    autoUpdater.on('error', () => {}) // offline, rate-limited: try again next time
+    autoUpdater.on('error', (e) => debug('update check failed:', e.message)) // offline, rate-limited: try again next time
+    autoUpdater.on('update-not-available', (info) => debug('up to date:', info.version))
+    autoUpdater.on('download-progress', (p) => debug(`downloading ${Math.round(p.percent)}%`))
     setTimeout(() => void this.check(), FIRST_CHECK_MS)
     setInterval(() => void this.check(), CHECK_EVERY_MS)
   }
 
   private report(update: UpdateInfo): void {
+    debug(`update ${update.source}:`, update.version)
     if (this.found?.version === update.version && this.found.source === update.source) return
     this.found = update
     this.onFound(update)
