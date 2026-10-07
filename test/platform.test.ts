@@ -12,6 +12,7 @@ describe('platform helpers', () => {
   it('takes bullet points from release notes in HTML or Markdown', () => {
     expect(releaseBullets('<ul>\n<li>Faster &amp; <code>lighter</code></li>\n<li>Fixes</li>\n</ul>')).toEqual(['Faster & lighter', 'Fixes'])
     expect(releaseBullets('- One\n* Two\nnot a bullet')).toEqual(['One', 'Two'])
+    expect(releaseBullets('- **Update** downloads `it`')).toEqual(['Update downloads it'])
     expect(releaseBullets(null)).toEqual([])
   })
 

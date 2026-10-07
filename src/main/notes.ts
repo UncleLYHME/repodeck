@@ -1,7 +1,7 @@
 // Release notes -> the few bullet points the update popup shows.
 
 const decode = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-  .replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim()
+  .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\*\*|__|`/g, '').trim() // HTML tags and Markdown emphasis
 
 /** Bullet points from a release's notes (GitHub hands them over as HTML, sometimes Markdown). */
 export function releaseBullets(notes: unknown): string[] {
