@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0 — 2026-10-06
+
+- Every change to RepoDeck is now released automatically, and RepoDeck lets you know: a card shows what's new, **Update** downloads it in the background with progress, and it installs the next time you quit (or right away with Restart Now).
+- New preference: **Install Updates Automatically** downloads new versions in the background and installs them when you quit, without asking.
+- **Check for Updates** in the menu and a **Check Now** button in Preferences, which also shows where the update stands; the sidebar shows an Update badge while one is waiting.
+- RepoDeck checks for updates every 15 minutes instead of 30.
+
 ## 2.1.0 — 2026-10-06
 
 - RepoDeck now comes as an installer for Linux (AppImage and .deb), macOS (Apple Silicon and Intel) and Windows, published on GitHub Releases.
