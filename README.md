@@ -1,120 +1,150 @@
-# RepoDeck
+<p align="center">
+  <img src="data/repodeck.svg" width="104" alt="RepoDeck logo">
+</p>
 
-A desktop app that shows source control for several git repositories side by side, like a grid of VS Code Source Control panels. Built with Electron, React and TypeScript; Linux first (macOS and Windows later).
+<h1 align="center">RepoDeck</h1>
 
-The window has a sidebar with **Home**, **Projects** and **Activity**, plus every project with a status dot (orange: uncommitted changes, blue: commits to push or pull).
+<p align="center">
+  <strong>Source control for every repository you work on, side by side.</strong><br>
+  Commit, stage hunks, switch branches and keep everything in sync, across all your projects, from one window.
+</p>
 
-Click a project in the sidebar for its **analytics page**: commits and lines changed over 30 days (with the change against the previous 30), current commit streak, all-time commits and contributors (one person's different names and emails merged), a 30-day activity chart, a weekday × hour heatmap of when commits happen, languages by size, most changed files (click to open in VS Code), branches with age and ahead/behind, open pull requests and the latest workflow runs, and recent commits. **Open Panel** jumps to the project's panel for committing; the page refreshes itself as the repository changes.
+<p align="center">
+  <a href="https://github.com/UncleLYHME/repodeck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/UncleLYHME/repodeck?label=release&color=3b6fe0"></a>
+  <a href="https://github.com/UncleLYHME/repodeck/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/UncleLYHME/repodeck/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Linux%20·%20macOS%20·%20Windows-555">
+</p>
 
-**Home** is a dashboard across all projects, under a pixel-art coast whose light follows the time of day: dawn (5–8), day (8–17), dusk (17–20) and night, cross-fading as the hour changes, with a matching greeting. Clouds drift, stars twinkle and the lighthouse beam pulses at dusk and night; the motion pauses while Home is hidden and stops entirely if the desktop asks for reduced animation. The layers live in `data/hero/<phase>/` (regenerate with `python3 tools/make_hero.py`); **Animated Banner** in Preferences turns the motion off.
+<p align="center">
+  <a href="https://github.com/UncleLYHME/repodeck/releases/latest"><b>Download</b></a> ·
+  <a href="#features">Features</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#development">Development</a>
+</p>
 
-- **Jump to a project…**: type part of a name, Enter opens it
-- **Working now**: projects with uncommitted changes, branch and file counts
-- **Git activity**: commits over the last 14 days across all projects (branches, remotes and tags; each commit counted once), lines added/removed, a daily bar chart (hover for the date)
-- **Sync**: what needs pushing or pulling, pending pulls and failed fetches, with a Push button
-- **Recent commits** and **Most active** projects
-- **Pull requests** awaiting your review and your own open PRs, and **CI failures** (latest run per workflow and branch), through the `gh` CLI's existing login; refreshed every 5 minutes
-- **Running services**: listening ports whose process runs inside a project (click to open in the browser), re-checked every 8 seconds while Home is shown
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="RepoDeck's Home dashboard: activity, pull requests, sync status and running services across all projects" width="900">
+</p>
 
-**Projects**: repositories are grouped into collapsible sections, one per folder. Click a folder header to open or close it; the header always shows a summary (repo count, which repos have changes, commits to push/pull). The list icon in the title bar collapses or expands every folder.
+## Why RepoDeck
 
-Each repository panel shows:
+If you keep several editor windows open just to watch the Source Control panel of each project, RepoDeck puts all of them in one place. Point it at a folder of projects and every repository shows up as a panel with its changes, commit box, branches and history graph, plus a dashboard of what's happening across all of them. It watches the filesystem, so there is nothing to refresh.
 
-- the branch pill (click it to switch branch, check out a remote branch, or type a new name to create one) and ahead/behind counts against the upstream
-- a multi-line commit message: **Commit N** (Ctrl+Enter) commits exactly the checked files and leaves everything else (including other staged work) untouched; its dropdown has **Commit & Push** (Ctrl+Shift+Enter)
-- the identity the commit will use (`as Name <email>`); if git has none for the repo, a warning and **Set identity…**, which saves `user.name`/`user.email` in that repo's config (preselecting the `~/.gitconfig-*` profile named after a folder on the repo's path)
-- changed files with checkboxes and a discard button (↶) per file or for all checked files; edits go back to the last commit, new files go to the Trash
-- click a changed file to stage, unstage or discard it hunk by hunk (**Side by Side** compares the whole file); a file with only part staged shows **partial**, and Commit then takes only its staged part
-- right-click a changed file (or Shift+F10): **Ignore This File**, **Ignore All .ext Files** or **Ignore Folder …/** adds a line to `.gitignore` (once); for a file git already tracks, "This File" also stops tracking it and leaves it on disk
-- files open in a **compare view**: side by side with syntax highlighting, the two versions aligned line by line, real line numbers, changed words highlighted, Alt+↑/↓ between changes; or **Unified**. The layout you pick is remembered
-- a banner while a merge, rebase, cherry-pick or revert is in progress, with **Abort…**; conflicted files open in VS Code
-- a history graph of all local branches, remotes and tags, with branch/tag pills
-- click a commit to open it in place: its files are listed under it with icons and status letters (M modified, A added, D deleted, R renamed); click a file for its diff in that commit, or the page button on the commit for the full patch. Merge commits list what they brought in. Click again to close.
-- search history (🔍) by message, author, hash or the name of a file a commit touched
-- the last 300 commits are laid out up front (so lanes stay consistent) and only the rows on screen are drawn; shimmering skeleton rows mark what's still loading, here and in every card and panel before its first data arrives
-- ⋮ menu: Fetch, Pull (fast-forward only), Push · Open on GitHub, Create Pull Request (opens GitHub's compare page) · Stash All Changes (including new files), Apply Latest Stash · Pinned to Top, Open in Files, Open in VS Code, Remove from Deck
-- pinned projects (★) sort first in their folder and in the sidebar
+## Features
 
-Everything is event-driven (inotify, one watch per non-ignored folder); there is nothing to refresh by hand:
+### Every repository, one deck
 
-- editing, creating or deleting files, staging, committing, switching branches or fetching (from VS Code, a terminal, anywhere) updates the panel within a fraction of a second
-- creating a project in a watched folder (`mkdir` + `git init`, or `git clone`) adds it to that folder's section; deleting or moving a project away removes it
-- dropping folders onto the window adds them
-- every 5 minutes (and shortly after launch) each repo with a remote is fetched in the background, two at a time; new upstream commits show as ↓N, in the graph, in the folder summary and as a toast
-- the branch you are on is pulled automatically when its upstream has new commits (see below)
+<img src="docs/screenshots/projects.png" alt="The Projects page: repository panels grouped by folder, each with a commit box, changes and a history graph" width="900">
 
-Background fetches only update remote-tracking branches, never your branches or files. They never prompt: credential helpers and a running ssh-agent work, anything that would need a password or host-key confirmation fails quietly and shows ⚠ next to the ahead/behind counts (hover for the reason). Turn it off in Preferences, or fetch everything immediately from the main menu (☰).
+- **Folders of projects become sections** that open and close; new projects (`git init`, `git clone`) appear by themselves and deleted ones disappear.
+- **Commit exactly what you check.** Ctrl+Enter commits the checked files and leaves everything else, including other staged work, untouched. Ctrl+Shift+Enter commits and pushes.
+- **Stage, unstage or discard hunk by hunk**, discard files (new files go to the Trash), and ignore a file, its extension or its folder from the right-click menu.
+- **Branch pill**: switch branches, check out remote ones or create a new one by typing its name.
+- **History graph** of all branches, remotes and tags. Click a commit to list its files with status letters, then click a file for its diff. Search by message, author, hash or file name.
+- Stash and apply, abort a merge or rebase, open on GitHub or create a pull request, pin favourites to the top.
 
-A quiet refresh every 60 seconds keeps relative dates current and catches anything missed. Very large repositories watch their first 4,000 directories.
+### See changes properly
 
-## Run
+<img src="docs/screenshots/compare.png" alt="Side-by-side comparison with syntax highlighting and changed words highlighted" width="900">
 
-Requires git, Node.js 22+ and pnpm (`corepack enable` or https://pnpm.io/installation). Optional: the `gh` CLI (pull requests and CI on Home) and VS Code's `code` command.
+Side by side or unified, with syntax highlighting, aligned lines, changed words highlighted and Alt+↑/↓ to jump between changes.
 
-```sh
-./install.sh            # installs dependencies, builds, adds `repodeck` to ~/.local/bin and an app-menu entry
-repodeck                # or launch "RepoDeck" from the app grid
-repodeck ~/Documents/projects/Personal   # add a repo, or every repo inside a folder
-```
+### Project analytics
 
-Without installing: `bin/repodeck [FOLDER...]` from this directory. The launcher installs dependencies when `pnpm-lock.yaml` changes and rebuilds when the sources change (into `out.next`, swapped in only if the build succeeds, so a broken checkout keeps starting the last good build). Running as root passes Chromium's required `--no-sandbox`. Launcher output goes to `~/.local/state/repodeck/launcher.log`.
+<img src="docs/screenshots/analytics.png" alt="Project analytics: commits, streak, a 30-day chart, a weekday by hour heatmap, languages, hot files and contributors" width="900">
 
-**Add Folder** (Ctrl+O), or drag folders onto the window. A folder of projects becomes its own section and shows new projects automatically; a single repository joins the section for its parent folder without watching for siblings. A folder's ⋮ menu toggles **Show New Projects Automatically** or removes the whole section. Projects you remove by hand are remembered and not re-added. Refresh all with F5 or Ctrl+R. Folders, repos, open/closed state and settings are saved in `~/.config/repodeck/repos.json`, the same file RepoDeck 1.x used.
+Commits and lines over 30 days, streaks, when commits happen (weekday × hour), languages, the most changed files, contributors (with one person's different names and emails merged), branches, open pull requests and recent workflow runs.
 
-## Staying up to date
+### Always in sync, never surprising
 
-**Auto-pull** only ever touches the branch that is checked out. When its upstream has new commits and you have no unpushed commits on it, RepoDeck fast-forwards it. Other branches are never touched; switch to one and it is pulled then. Branches without an upstream, a detached HEAD, or a merge/rebase in progress are left alone.
+- **Background fetch** every 5 minutes (configurable). It never prompts; anything that needs a password or a host-key check fails quietly and shows ⚠.
+- **Auto-pull touches only the branch you're on**, and only fast-forwards. Uncommitted work is kept; if incoming commits change a file you're editing, it waits (**pull pending**) and retries once that file is committed or reverted. With unpushed commits *and* new remote ones it does nothing in the background (**syncs on push**).
+- **Push** fetches first, then fast-forwards or replays your commits on top (`rebase --autostash`). On a conflict it puts everything back and tells you, so nothing half-done is left behind.
+- Auto-pull can be switched off globally or per folder (for example, for work repositories).
 
-- Uncommitted changes are kept. If incoming commits change a file you have edited, git refuses and nothing changes: the panel shows **pull pending** and retries by itself as soon as that file is committed or reverted.
-- If you have unpushed commits *and* the remote has new ones, nothing happens in the background. The panel shows **syncs on push**.
+### Home, Activity and the rest
 
-**Push** (⋮ menu or Commit & Push) first fetches; if the remote has moved on it fast-forwards, or replays your unpushed commits on top of the remote's (`rebase --autostash`), then pushes. If that replay conflicts it is aborted, your branch is left exactly as it was, nothing is pushed, and you get an explanation.
+- **Home**: what's uncommitted, what needs pushing or pulling (with a Push button), commits over the last two weeks, pull requests waiting on you, failing CI and dev servers running from your projects, under a pixel-art coast that follows the time of day.
+- **Activity** logs what RepoDeck did on its own (pulls, fetch problems, new projects, CI failures) and every action you ran.
+- **Notifications** when the window is in the background; **Start on Login**; a quiet, near-zero CPU footprint when idle.
 
-Auto-pull can be switched off in Preferences, globally or per folder.
+## Install
 
-**Activity** (sidebar, or ☰) lists what RepoDeck did, grouped by day: background pulls and fetch problems (logged when they start and stop, not on every retry), new projects found in a folder, CI failures and review requests, updates, and every action you ran with its result. Filter to Automatic or Problems, or search; the sidebar badge counts problems you haven't seen. Kept in `~/.local/state/repodeck/activity.jsonl` (latest 500).
+Download the latest release for your platform from **[Releases](https://github.com/UncleLYHME/repodeck/releases/latest)**:
 
-**Preferences** (Ctrl+, or ☰): start on login, desktop notifications, update checks, the animated banner, the default compare layout; background fetch on/off and its interval (2–60 minutes), auto-pull on/off globally and per folder (e.g. off for work repositories); and the cache and activity log, with their sizes and a Clear button for each.
+| Platform | File | Updates |
+| --- | --- | --- |
+| Linux | `RepoDeck-x.y.z.AppImage` (make it executable and run it) | Automatic |
+| Linux (Debian, Ubuntu) | `repodeck_x.y.z_amd64.deb` | In-app prompt to download |
+| macOS (Apple Silicon / Intel) | `RepoDeck-x.y.z-arm64.dmg` / `RepoDeck-x.y.z.dmg` | In-app prompt to download |
+| Windows 10/11 | `RepoDeck-Setup-x.y.z.exe` | Automatic |
 
-When the window is in the background, auto-pulls, newly fetched commits, new CI failures and new review requests arrive as desktop notifications (switch off in Preferences). **Start on Login** adds an XDG autostart entry.
+RepoDeck needs **git** on your PATH. Optional: the [GitHub CLI](https://cli.github.com) (`gh auth login`) for pull requests and CI on Home, and VS Code's `code` command for opening files.
 
-## Updates
+> [!NOTE]
+> The macOS app isn't signed with an Apple Developer ID yet. The first time, right-click RepoDeck in Applications and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/RepoDeck.app`). Windows may show a SmartScreen prompt for the same reason.
 
-RepoDeck runs straight from its git checkout. A release is a commit that raises `version` in `package.json`, with its notes under a `## <version> — <date>` heading in `CHANGELOG.md`.
+Then click **Add Folder** (Ctrl+O), or drag folders onto the window: a repository, or a folder that contains several.
 
-- When the checkout already holds a newer version (you pulled, or RepoDeck auto-pulled its own repo), a popup appears at once: **RepoDeck x.y.z is ready** → **Restart Now**.
-- Every 30 minutes RepoDeck quietly fetches its own repo; a newer version upstream shows **RepoDeck x.y.z is available** → **Restart to Update**, which fast-forwards the checkout first. If that isn't possible (local commits, or uncommitted edits to files the update changes) nothing is touched and the popup says why.
-- Restarting saves state, waits for the old process to exit and starts the new version through `bin/repodeck`, which rebuilds it. You're asked first if any panel has a typed commit message. **Later** hides the popup for that version until the next launch.
-- `REPODECK_UPDATE_INTERVAL` (seconds) changes the check interval; `REPODECK_PROFILE=name` runs a separate instance with its own settings, cache and log (`~/.config/repodeck-name`, …) alongside your usual one.
-- Installers and auto-update for packaged builds are not set up yet; the checkout is the install.
+### Updates
 
-## Caching
+Installed copies check GitHub Releases every 30 minutes (switch off in Preferences). Windows and the AppImage download the new version in the background and show **RepoDeck x.y.z is ready → Restart Now**; the macOS app and the .deb show **Download**. You're asked first if a commit message is still unsent.
 
-Results are cached in memory and in `~/.cache/repodeck/cache-v2.json`, so the app starts with data on screen:
+### Keyboard shortcuts
 
-- History-derived data (the Home activity scan, project analytics, a panel's history graph and stash list) is keyed on a fingerprint of the repo's branches, tags, remote-tracking refs, stash and HEAD. Editing files doesn't touch it; a commit, fetch, checkout, branch or tag change recomputes just that repository. Tool-private refs (such as `refs/t3/*`) are ignored.
-- A panel's identity and GitHub remote are re-read only when a git config file changes.
-- GitHub answers (pull requests, CI, workflow runs) are reused for 2 minutes. Older data is still shown, with "Updated 3m ago" or "GitHub unreachable · showing data from …", while a fresh copy loads. F5 or the refresh button always asks GitHub again.
-- Entries unused for 30 days are dropped. Deleting the file is always safe.
+| Action | Shortcut |
+| --- | --- |
+| Add a repository or folder | Ctrl+O |
+| Refresh everything (including GitHub) | F5 or Ctrl+R |
+| Commit the checked files / commit and push | Ctrl+Enter / Ctrl+Shift+Enter |
+| Next / previous change in a comparison | Alt+↓ / Alt+↑ |
+| Context menu on a changed file | right-click, Shift+F10 or the Menu key |
+| Preferences | Ctrl+, |
 
-## Notes
+On macOS, use ⌘ instead of Ctrl.
 
-- Git runs with `GIT_OPTIONAL_LOCKS=0`, so background polling doesn't contend with VS Code for `index.lock`.
-- Fetch/Pull/Push from a panel's ⋮ menu can use your desktop's password prompt; background fetches never do. Manual network actions time out after 2 minutes, background fetches after 1.
-- During a merge, Commit stages the checked files and commits the whole index, since git refuses partial merge commits.
+## Your data
 
-## How it's built
+Settings and the folder list, a cache of git and GitHub results, and the activity log are stored locally:
 
-- **main** (`src/main`): the window, Trash, notifications, dialogs, opening links and VS Code, relaunching. Hardware acceleration is off when there's no GPU render node (xrdp, VMs).
-- **core** (`src/core`, an Electron utility process, plain Node): git (the CLI, with `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0` and literal pathspecs), file watching, background fetch and auto-pull, stats, GitHub through `gh`, the cache, the activity log, settings and update checks. It only touches repositories that are in the deck.
-- **renderer** (`src/renderer`, React, Tailwind, Zustand, Base UI, CodeMirror's merge view, TanStack Virtual): talks to the core over a MessagePort through a small typed bridge (`src/preload`); context isolation on, no Node in the page, nothing remote loads.
-- **shared** (`src/shared`): types, the commit-graph lane layout, the RPC protocol.
+| | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| Settings | `~/.config/repodeck` | `~/Library/Application Support/RepoDeck` | `%APPDATA%\RepoDeck` |
+| Cache | `~/.cache/repodeck` | `…/RepoDeck/Cache` | `…\RepoDeck\Cache` |
+| Activity log | `~/.local/state/repodeck` | `…/RepoDeck/State` | `…\RepoDeck\State` |
+
+RepoDeck has no telemetry. It talks to the network only through your own `git fetch`/`pull`/`push`, the `gh` CLI (when installed) and the update check against GitHub Releases. It only ever touches repositories you've added.
+
+## Development
+
+Requires git, Node.js 22+ and pnpm.
 
 ```sh
 pnpm install
-pnpm dev          # hot-reloading development build
-pnpm build        # into out/
+pnpm dev          # the app with hot reload
+pnpm test         # unit tests against real temporary git repositories
+pnpm e2e          # Playwright drives the built app (Linux: under Xvfb)
 pnpm typecheck
-pnpm test         # vitest: git, sync, stats, cache, updater… against real temporary repos
-pnpm e2e          # Playwright drives the built app under Xvfb against scratch repos
+pnpm dist         # installers for the current platform, in release/
 ```
+
+On Linux you can also run it straight from a checkout: `./install.sh` adds a `repodeck` command and an app-menu entry that start `bin/repodeck`. That launcher installs dependencies and rebuilds when the checkout changes (keeping the last good build if a build fails), and a checkout updates itself by fast-forwarding to new versions on its upstream branch.
+
+### How it's built
+
+| Part | What it does |
+| --- | --- |
+| `src/main` | Electron main process: the window, Trash, notifications, dialogs, links, login items and updates (electron-updater) |
+| `src/core` | A utility process (plain Node): git through its CLI, file watching, background fetch and auto-pull, stats, GitHub through `gh`, the cache, the activity log and settings |
+| `src/renderer` | React, Tailwind, Zustand, Base UI, CodeMirror's merge view and TanStack Virtual; talks to the core over a MessagePort through a small typed bridge (`src/preload`) |
+| `src/shared` | Types, the commit-graph lane layout and the RPC protocol |
+
+Git runs with `GIT_OPTIONAL_LOCKS=0` (no fighting your editor for `index.lock`), `GIT_TERMINAL_PROMPT=0` and literal pathspecs. Results derived from history are cached until the repository's refs move. The page runs with context isolation and no Node access, and loads nothing remote.
+
+### Releasing
+
+1. Raise `version` in `package.json` and add a `## x.y.z — date` section to [CHANGELOG.md](CHANGELOG.md).
+2. Commit, then tag and push: `git tag vX.Y.Z && git push origin main vX.Y.Z`.
+3. The [Release workflow](.github/workflows/release.yml) builds Linux, macOS and Windows installers, attaches them to a GitHub release with the changelog section as its notes, and publishes it. Installed copies pick it up within 30 minutes.
+
+README screenshots come from a made-up deck: `pnpm build && xvfb-run -a node scripts/screenshots.mjs`.
