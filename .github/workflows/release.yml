@@ -54,6 +54,10 @@ jobs:
             exit 0
           fi
           version=$(node --no-warnings scripts/next-version.mjs "${latest:-v0.0.0}")
+          # a draft left by a failed run of the same version is replaced, not reused (its assets may be stale)
+          if gh release view "v$version" --json isDraft --jq .isDraft 2>/dev/null | grep -q true; then
+            gh release delete "v$version" --yes
+          fi
           node --no-warnings scripts/release-notes.mjs "$version" "$latest" > notes.md
           cat notes.md
           gh release create "v$version" --draft --target "$sha" --title "RepoDeck $version" --notes-file notes.md
@@ -71,6 +75,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash # the same quoting everywhere (PowerShell splits -c.extraMetadata.version=…)
     steps:
       - uses: actions/checkout@v7
         with:
