@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import type { RepoState } from '@shared/types'
-import { basename, plural } from '@shared/time'
+import { basename, clockTime, plural } from '@shared/time'
 import { api, host } from '../bridge'
-import { confirm, runOp, useStore } from '../store'
+import { confirm, runOp, useHour12, useStore } from '../store'
 import { MenuButton } from '../ui/menu'
 import { Bump } from '../ui/motion'
 import { BranchPicker } from './BranchPicker'
@@ -23,10 +23,11 @@ function githubUrl(slug: string, st: RepoState['status'], compare = false): stri
 
 function SyncLabel({ state }: { state: RepoState }) {
   const st = state.status
+  const hour12 = useHour12()
   if (!st) return null
   let text = st.upstream ? `↑${st.ahead} ↓${st.behind}` : 'local'
   const tip = [st.upstream ? `${st.ahead} to push, ${st.behind} to pull` : 'No upstream branch']
-  if (state.fetchedAt) tip.push(`Last fetched at ${state.fetchedAt}`)
+  if (state.fetchedAt) tip.push(`Last fetched at ${clockTime(state.fetchedAt, hour12)}`)
   if (state.fetchError) {
     text = `⚠ ${text}`
     tip.push(`Background fetch failed: ${state.fetchError}`)

@@ -14,6 +14,17 @@ export function ago(ts: number, now = Date.now() / 1000): string {
   return 'now'
 }
 
+/** A time of day as "14:05" or "2:05 PM". */
+export function clockTime(ts: number, hour12: boolean): string {
+  return new Date(ts * 1000).toLocaleTimeString(undefined, { hour: hour12 ? 'numeric' : '2-digit', minute: '2-digit', hour12 })
+}
+
+/** An hour of the day as "14:00" or "2 PM". */
+export function clockHour(hour: number, hour12: boolean): string {
+  const h = hour % 24
+  return hour12 ? new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric', hour12 }) : `${String(h).padStart(2, '0')}:00`
+}
+
 /** 1234 -> "1.2k" */
 export function short(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k`.replace('.0k', 'k') : String(n)

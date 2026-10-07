@@ -10,7 +10,7 @@ export interface RepoDeckBridge {
     chooseFolders(): Promise<string[]>
     initialFolders(): Promise<string[]>
     pathForFile(file: File): string
-    appInfo(): Promise<{ packaged: boolean; version: string; update: import('../shared/types').UpdateStatus | null }>
+    appInfo(): Promise<{ packaged: boolean; version: string; update: import('../shared/types').UpdateStatus | null; hour12: boolean }>
     update(action: import('../shared/types').UpdateAction): Promise<import('../shared/types').UpdateStatus>
   }
   platform: string

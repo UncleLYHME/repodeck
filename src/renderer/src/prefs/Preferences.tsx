@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { Database, RefreshCw, Settings2, X } from 'lucide-react'
 import type { DataInfo, Settings, UpdateStatus } from '@shared/types'
-import { ago, basename, plural } from '@shared/time'
+import { ago, basename, clockTime, plural } from '@shared/time'
 import { api, host } from '../bridge'
 import { showAlert, toast, updateAction, useStore } from '../store'
 import { Switch } from '../ui/bits'
@@ -12,6 +12,7 @@ import { Picker } from '../ui/select'
 
 const FETCH_MINUTES = [2, 5, 10, 15, 30, 60]
 const DIFF_LAYOUTS = [['side', 'Side by Side'], ['unified', 'Unified']] as const
+const CLOCKS = [['system', 'System'], ['12h', '12-hour'], ['24h', '24-hour']] as const
 const PAGES = [['general', 'General', Settings2], ['sync', 'Sync', RefreshCw], ['data', 'Data', Database]] as const
 type PageKey = (typeof PAGES)[number][0]
 
@@ -73,6 +74,7 @@ export function Preferences() {
   const update = useStore((s) => s.update)
   const version = useStore((s) => s.version)
   const packaged = useStore((s) => s.packaged)
+  const systemHour12 = useStore((s) => s.systemHour12)
   const [page, setPage] = useState<PageKey>('general')
   const [info, setInfo] = useState<DataInfo | null>(null)
 
@@ -138,6 +140,9 @@ export function Preferences() {
                     </Row>
                     <Row title="Comparing Files" subtitle="How a file's changes open">
                       <Picker label="Comparing Files" value={s.diffLayout} options={DIFF_LAYOUTS} onChange={(v) => set('diffLayout', v)} />
+                    </Row>
+                    <Row title="Clock" subtitle={`System follows your computer · now ${clockTime(Date.now() / 1000, systemHour12)}`}>
+                      <Picker label="Clock" value={s.clock} options={CLOCKS} onChange={(v) => set('clock', v)} />
                     </Row>
                   </Group>
                 </>

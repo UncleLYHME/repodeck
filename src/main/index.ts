@@ -11,6 +11,7 @@ import {
 import type { UpdateAction } from '../shared/types'
 import { Endpoint } from '../shared/rpc'
 import { loadBounds, saveBounds } from './bounds'
+import { systemHour12 } from './clock'
 import { configDir, dirsEnv } from './dirs'
 import { loginItem, loginPath, openInCode, setMenu } from './platform'
 import { adoptSession, otherSession, sessionEnv } from './session'
@@ -211,7 +212,10 @@ function hostHandlers(): void {
     if (!isAbsolute(path) || !isDir(path)) throw new Error(`Not a folder: ${path}`)
     openInCode(path, file)
   })
-  handle('host:appInfo', () => ({ packaged: app.isPackaged, version: app.getVersion(), update: app.isPackaged ? updater.status : null }))
+  handle('host:appInfo', async () => ({
+    packaged: app.isPackaged, version: app.getVersion(), update: app.isPackaged ? updater.status : null,
+    hour12: await systemHour12(app.getSystemLocale()),
+  }))
   handle('host:update', async (action: UpdateAction) => {
     if (action === 'check') return updater.check(true)
     if (action === 'download') return updater.download()

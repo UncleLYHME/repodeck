@@ -43,6 +43,7 @@ interface State {
   github: GithubDashboard | null
   update: UpdateStatus | null
   packaged: boolean // installed copy (updates through main), not a checkout (updates through the core)
+  systemHour12: boolean // the system's clock uses AM/PM
   dismissed: string[] // "phase:version" popups the user said Later to this session
   page: Page
   projectPath: string | null
@@ -72,6 +73,7 @@ export const useStore = create<State>(() => ({
   github: null,
   update: null,
   packaged: false,
+  systemHour12: false,
   dismissed: [],
   page: 'home',
   projectPath: null,
@@ -87,6 +89,12 @@ export const useStore = create<State>(() => ({
   sideOpen: false,
   refreshing: 0,
 }))
+
+/** Show times with AM/PM: the Clock preference, or the system's clock when it's "System". */
+export const useHour12 = (): boolean => useStore((s) => {
+  const clock = s.deck?.settings.clock
+  return clock === '12h' || (clock !== '24h' && s.systemHour12)
+})
 
 const set = useStore.setState
 const get = useStore.getState
@@ -106,7 +114,7 @@ async function load(): Promise<void> {
     activity: snap.activity,
   })
   const app = await host.appInfo()
-  set({ packaged: app.packaged, update: app.packaged ? app.update : snap.update })
+  set({ packaged: app.packaged, update: app.packaged ? app.update : snap.update, systemHour12: app.hour12 })
 }
 
 export async function init(): Promise<void> {

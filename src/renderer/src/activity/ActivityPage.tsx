@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { AlertCircle, AlertTriangle, History, RefreshCw, User } from 'lucide-react'
 import type { ActivityEntry } from '@shared/types'
-import { basename, localDate } from '@shared/time'
+import { basename, clockTime, localDate } from '@shared/time'
 import { api } from '../bridge'
-import { confirm, showProject, useStore } from '../store'
+import { confirm, showProject, useHour12, useStore } from '../store'
 
 const FILTERS = [['all', 'All'], ['auto', 'Automatic'], ['problems', 'Problems']] as const
 type Filter = (typeof FILTERS)[number][0]
@@ -29,6 +29,7 @@ function Icon({ e }: { e: ActivityEntry }) {
 
 export function ActivityPage() {
   const entries = useStore((s) => s.activity)
+  const hour12 = useHour12()
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
@@ -81,7 +82,7 @@ export function ActivityPage() {
             <h3 className="mx-1 mt-1 mb-1.5 text-[11px] font-extrabold tracking-[0.08em] text-white/55 uppercase">{dayTitle(day)}</h3>
             <ul className="card overflow-hidden">
               {list.map((e, i) => {
-                const time = new Date(e.ts * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
+                const time = clockTime(e.ts, hour12)
                 const who = e.who === 'auto' ? 'Automatic' : 'You'
                 const body = (
                   <>
@@ -90,7 +91,7 @@ export function ActivityPage() {
                       <span className="break-words">{e.message}</span>
                       <span className="meta">{e.repo ? `${basename(e.repo)} · ${who}` : who}</span>
                     </span>
-                    <span className="meta self-start">{time}</span>
+                    <span className="meta self-start whitespace-nowrap">{time}</span>
                   </>
                 )
                 const cls = `flex w-full items-center gap-3 px-3.5 py-2.5 ${i ? 'border-t border-line' : ''}`

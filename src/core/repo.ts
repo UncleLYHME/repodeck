@@ -69,7 +69,7 @@ export class RepoController {
   busy: string | null = null
   fetching = false
   lastFetch = 0 // Date.now() of the last finished fetch
-  fetchedAt: string | null = null
+  fetchedAt: number | null = null
   fetchError: string | null = null
   pullBlocked: string | null = null // why the last automatic pull could not run; retried on the next change
   private pulling = false
@@ -256,8 +256,7 @@ export class RepoController {
   fetchFinished(error: unknown, behindBefore: number, fresh: Status | null): void {
     this.fetching = false
     this.lastFetch = Date.now()
-    const d = new Date()
-    this.fetchedAt = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    this.fetchedAt = Date.now() / 1000
     const previous = this.fetchError
     this.fetchError = error ? firstLine(error) : null
     if (this.fetchError && this.fetchError !== previous) {

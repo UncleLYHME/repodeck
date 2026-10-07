@@ -66,6 +66,7 @@ export function loadConfig(path = configPath()): Config {
       autoUpdate: get('auto_update', false),
       bannerMotion: get('banner_motion', true),
       diffLayout: get('diff_layout', 'side'),
+      clock: get('clock', 'system'),
     },
     pinned: get('pinned', [] as string[]),
     groups,
@@ -77,6 +78,7 @@ export function saveConfig(config: Config, path = configPath()): void {
   const data = {
     auto_fetch: s.autoFetch, auto_pull: s.autoPull, notify: s.notify, fetch_minutes: s.fetchMinutes,
     update_checks: s.updateChecks, auto_update: s.autoUpdate, banner_motion: s.bannerMotion, diff_layout: s.diffLayout,
+    clock: s.clock,
     pinned: [...config.pinned].sort(),
     groups: config.groups.map((g) => ({ ...g, hidden: [...g.hidden].sort() })),
   }
