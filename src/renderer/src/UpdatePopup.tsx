@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { Download, RotateCw } from 'lucide-react'
 import { basename } from '@shared/time'
+import { host } from './bridge'
 import { confirm, updateAction, useStore } from './store'
 
 export function UpdatePopup() {
@@ -50,11 +51,19 @@ export function UpdatePopup() {
           <span className="meta w-9 text-right">{update.progress}%</span>
         </div>
       ) : (
-        <ul className="flex flex-col gap-1">
-          {(update.notes.length ? update.notes.slice(0, 4) : ['Bug fixes and improvements.']).map((n) => (
-            <li key={n} className="text-[12.5px] text-white/75">• {n}</li>
-          ))}
-        </ul>
+        <>
+          <ul className="flex flex-col gap-1">
+            {(update.notes.length ? update.notes.slice(0, 3) : ['Bug fixes and improvements.']).map((n) => (
+              <li key={n} className="line-clamp-2 text-[12.5px] text-white/75" title={n}>• {n}</li>
+            ))}
+          </ul>
+          {!checkout && (
+            <button className="self-start text-[12px] font-semibold text-accent-fg hover:underline"
+              onClick={() => void host.openExternal(`https://github.com/UncleLYHME/repodeck/releases/tag/v${update.version}`)}>
+              See everything new
+            </button>
+          )}
+        </>
       )}
       {update.phase === 'ready' && (
         <p className="text-[12px] text-white/55">{checkout ? 'It starts the next time you open RepoDeck.' : 'It installs when you quit RepoDeck.'}</p>
