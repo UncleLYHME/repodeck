@@ -137,6 +137,8 @@ pnpm typecheck
 pnpm dist         # installers for the current platform, in release/
 ```
 
+`scripts/project-action.sh <setup|start|check|test|lint|build>` runs the common development tasks from one place; `--help` lists them and `--dry-run` prints the commands without running them.
+
 On Linux you can also run it straight from a checkout: `./install.sh` adds a `repodeck` command and an app-menu entry that start `bin/repodeck`. That launcher installs dependencies and rebuilds when the checkout changes (keeping the last good build if a build fails). A checkout gets the same update flow, driven by new commits on its upstream branch: **Update** fast-forwards it and the next start rebuilds.
 
 ### How it's built
