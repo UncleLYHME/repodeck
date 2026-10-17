@@ -25,5 +25,6 @@ export function ignoreChoices(change: Change): [string, string][] {
   if (ext) choices.push([`All ${ext} Files`, '*' + gitignoreEscape(ext)])
   const parent = dirname(change.path)
   if (parent) choices.push([`Folder ${parent}/`, '/' + gitignoreEscape(parent) + '/'])
-  return choices
+  // A pattern can't hold a line break (it would become two rules), so file names with one get no choice.
+  return choices.filter(([, pattern]) => !/[\r\n]/.test(pattern))
 }

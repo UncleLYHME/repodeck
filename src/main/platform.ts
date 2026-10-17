@@ -1,8 +1,9 @@
 // Per-platform details for main: the app menu, the PATH GUI apps get, opening VS Code, login items.
 
 import { execFileSync, spawn } from 'node:child_process'
-import { join } from 'node:path'
+import { realpathSync } from 'node:fs'
 import { app, Menu } from 'electron'
+import { editorCommand } from './editor'
 
 /**
  * macOS needs a menu for Cmd+Q and copy/paste in text fields. Elsewhere there is none, so no
@@ -35,12 +36,10 @@ export function loginPath(): string | undefined {
   }
 }
 
-/** Open a folder, or a file inside it, in VS Code. */
+/** Open a folder, or a file inside it, in VS Code. Never goes through a shell. */
 export function openInCode(folder: string, file?: string): void {
-  const args = file ? ['-g', join(folder, file)] : [folder]
-  // On Windows `code` is a .cmd script, which only runs through the shell.
-  const win = process.platform === 'win32'
-  spawn('code', win ? args.map((a) => `"${a}"`) : args, { detached: true, stdio: 'ignore', shell: win }).on('error', () => {}).unref()
+  const cmd = editorCommand(folder, file, { platform: process.platform, env: process.env, realpath: realpathSync })
+  spawn(cmd.command, cmd.args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => {}).unref()
 }
 
 /** Start on Login for macOS and Windows (Linux uses an XDG autostart entry, written by the core). */

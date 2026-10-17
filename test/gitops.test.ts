@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { isPartial, isStaged, hunkPatch } from '../src/shared/changes'
@@ -135,6 +135,33 @@ describe('gitops', () => {
     const change = (await byPath(repo))['b.txt']
     expect([change.x, change.kind]).toEqual(['D', 'tracked']) // removed from the index...
     expect(existsSync(join(repo, 'b.txt'))).toBe(true) // ...but kept on disk
+  })
+
+  it('refuses to write .gitignore through a symlink or with line breaks in the pattern', async () => {
+    const { tmp, repo } = await setup()
+    const outside = join(tmp, 'outside.txt')
+    writeFileSync(outside, 'keep\n')
+    symlinkSync(outside, join(repo, '.gitignore'))
+    await expect(ops.ignore(repo, '/a.txt')).rejects.toBeInstanceOf(GitError)
+    expect(readFileSync(outside, 'utf8')).toBe('keep\n')
+    unlinkSync(join(repo, '.gitignore'))
+
+    symlinkSync(join(tmp, 'missing-target'), join(repo, '.gitignore')) // dangling link: don't create the target
+    await expect(ops.ignore(repo, '/a.txt')).rejects.toBeInstanceOf(GitError)
+    expect(existsSync(join(tmp, 'missing-target'))).toBe(false)
+    unlinkSync(join(repo, '.gitignore'))
+
+    await expect(ops.ignore(repo, '/a\n!b.txt')).rejects.toBeInstanceOf(GitError)
+    await expect(ops.ignore(repo, '/a\r!b.txt')).rejects.toBeInstanceOf(GitError)
+    expect(existsSync(join(repo, '.gitignore'))).toBe(false)
+
+    await ops.ignore(repo, '/a.txt') // a regular file still works
+    expect(readFileSync(join(repo, '.gitignore'), 'utf8')).toBe('/a.txt\n')
+  })
+
+  it('offers no ignore choices that contain a line break', () => {
+    const change = { path: 'dir/evil\nname.txt', x: '?', y: '?', kind: 'new' } as never
+    expect(ops.ignoreChoices(change).map(([label]) => label)).toEqual(['All .txt Files', 'Folder dir/'])
   })
 
   it('sets and reads the identity', async () => {
