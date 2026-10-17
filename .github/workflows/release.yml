@@ -16,8 +16,9 @@ on:
         type: boolean
         default: false
 
+# Read-only by default; the jobs that create, fill and publish the release get write access below.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
@@ -27,16 +28,20 @@ jobs:
   draft:
     if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: [self-hosted, foundry]
+    timeout-minutes: 30
+    permissions:
+      contents: write # creates the draft release (and deletes a stale one)
     outputs:
       release: ${{ steps.plan.outputs.release }}
       version: ${{ steps.plan.outputs.version }}
       sha: ${{ steps.plan.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+          persist-credentials: false # gh uses GH_TOKEN; nothing here pushes with git
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - name: Decide the version and draft the release
@@ -83,15 +88,19 @@ jobs:
           - platform: windows
             runner: windows-latest
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: write # electron-builder uploads the installers to the draft
     defaults:
       run:
         shell: bash # the same quoting everywhere (PowerShell splits -c.extraMetadata.version=…)
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.draft.outputs.sha }}
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -106,6 +115,9 @@ jobs:
   publish:
     needs: [draft, build]
     runs-on: [self-hosted, foundry]
+    timeout-minutes: 30
+    permissions:
+      contents: write # publishes the draft
     steps:
       - name: Publish the release (installed copies pick it up from here)
         env:

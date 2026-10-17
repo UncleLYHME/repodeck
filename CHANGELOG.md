@@ -2,6 +2,7 @@
 
 ## Unreleased — 2026-10-17
 
+- CI and release workflows pin every action to a full commit SHA, run read-only except for the release jobs that create, upload and publish, stop after a time limit, and drop the checkout credentials; a newer push cancels the CI run in progress (no change to the app).
 - Tests now cover the release scripts, version and notes logic, the message protocol between processes, settings files, Start on Login and the task scheduler (no change to the app).
 - Refreshed `RESTORE.md`: where RepoDeck is installed (Harbor, Foundry), the CI runner and the backup paths (no change to the app).
 
