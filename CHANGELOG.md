@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-10-17
 
+- Dependency refresh: `electron` 44.6.0 → 44.8.0, `react`/`react-dom` 19.3.1, `vitest` 5.0.5, `@playwright/test` 1.64.1, `@base-ui/react` 1.9.0, `lucide-react` 1.58.0, `@codemirror/language` 6.13.1 (deduped with an override so one copy is installed), plus patch bumps (no change to the app).
+- Majors: `vite` 7 → 8, `@vitejs/plugin-react` 5 → 6, `electron-vite` 5 → 6. `@types/node` stays on 24 to match Electron's bundled Node. One moderate advisory (`sprintf-js` 1.1.3, via `electron-builder`) has no patched release yet.
 - CI and release workflows pin every action to a full commit SHA, run read-only except for the release jobs that create, upload and publish, stop after a time limit, and drop the checkout credentials; a newer push cancels the CI run in progress (no change to the app).
 - Tests now cover the release scripts, version and notes logic, the message protocol between processes, settings files, Start on Login and the task scheduler (no change to the app).
 - Refreshed `RESTORE.md`: where RepoDeck is installed (Harbor, Foundry), the CI runner and the backup paths (no change to the app).
