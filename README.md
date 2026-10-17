@@ -169,3 +169,5 @@ README screenshots come from a made-up deck: `pnpm build && xvfb-run -a node scr
 ## License
 
 [MIT](LICENSE) © 2026 Uncle LYHME. Use, change and share RepoDeck however you like, including commercially, as long as copies keep the copyright and license notice, which credits the original.
+
+Disaster recovery: see [RESTORE.md](RESTORE.md).
