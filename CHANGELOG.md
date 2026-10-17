@@ -3,6 +3,7 @@
 ## Unreleased — 2026-10-17
 
 - Tests now cover the release scripts, version and notes logic, the message protocol between processes, settings files, Start on Login and the task scheduler (no change to the app).
+- Refreshed `RESTORE.md`: where RepoDeck is installed (Harbor, Foundry), the CI runner and the backup paths (no change to the app).
 
 ## 2.2.0 — 2026-10-06
 
