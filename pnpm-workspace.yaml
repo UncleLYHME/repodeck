@@ -4,3 +4,5 @@ allowBuilds:
   electron: true
   electron-winstaller: false # Squirrel.Windows; RepoDeck ships NSIS
   esbuild: true
+overrides:
+  "@codemirror/language": 6.13.1
