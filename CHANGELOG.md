@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-10-17
+
+- Tests now cover the release scripts, version and notes logic, the message protocol between processes, settings files, Start on Login and the task scheduler (no change to the app).
+
 ## 2.2.0 — 2026-10-06
 
 - Every change to RepoDeck is now released automatically, and RepoDeck lets you know: a card shows what's new, **Update** downloads it in the background with progress, and it installs the next time you quit (or right away with Restart Now).
