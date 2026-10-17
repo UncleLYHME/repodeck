@@ -24,7 +24,7 @@ gh repo clone UncleLYHME/repodeck /root/Documents/projects/Personal/repodeck
 cd /root/Documents/projects/Personal/repodeck && ./install.sh   # deps, first build, `repodeck` command and menu entry; safe to re-run
 ```
 3. Click **Add Folder** and re-add your repositories.
-4. CI runner (only if Foundry is rebuilt): re-create `actions-runner@repodeck` per homelab `services/github-runner/README.md`. Unverified: that README says `register.sh` refuses public repos, yet a `repodeck` runner exists, so it was registered by hand; until it is back, jobs that target `[self-hosted, foundry]` queue and releases stall.
+4. CI runner (only if Foundry is rebuilt): re-create `actions-runner@repodeck` with the hand-registration commands under "Public repos" in homelab `services/github-runner/README.md` (`register.sh` skips public repos, so it won't do it). Until it is back, jobs that target `[self-hosted, foundry]` queue and releases stall.
 
 ## Verify
 ```sh
