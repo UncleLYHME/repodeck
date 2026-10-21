@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased — 2026-10-17
+## Unreleased — 2026-10-21
 
+- Build tooling and CI pin Node 26.12.1 (`.nvmrc`, `engines` `>=26.12.1 <27`). The app itself runs on Electron's bundled Node.
 - Security: "Ignore This File" no longer writes through a `.gitignore` that is a symbolic link (or any non-regular file), and refuses patterns that contain a line break, so a crafted file name can't add extra rules or overwrite a file outside the repository.
 - Security: "Open in VS Code" no longer starts `code` through a shell on Windows (a file name containing a quote could inject commands). It launches `Code.exe` directly with an argument list, and refuses files outside the repository, including through symlinks.
 - Dependency refresh: `electron` 44.6.0 → 44.8.0, `react`/`react-dom` 19.3.1, `vitest` 5.0.5, `@playwright/test` 1.64.1, `@base-ui/react` 1.9.0, `lucide-react` 1.58.0, `@codemirror/language` 6.13.1 (deduped with an override so one copy is installed), plus patch bumps (no change to the app).

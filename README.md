@@ -126,7 +126,7 @@ RepoDeck has no telemetry. It talks to the network only through your own `git fe
 
 ## Development
 
-Requires git, Node.js 22+ and pnpm.
+Requires git, Node.js 26.12.1+ and pnpm.
 
 ```sh
 pnpm install
