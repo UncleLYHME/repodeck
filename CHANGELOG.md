@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-10-22
+
+- Security: `electron` 44.8.0 → 44.9.3. 44.9.1 is the first 44.x release that distrusts the compromised eMudhra root `emSign ECC Root CA - G3`; 44.8.0 still trusted it.
+
 ## Unreleased — 2026-10-21
 
 - Build tooling and CI pin Node 26.12.1 (`.nvmrc`, `engines` `>=26.12.1 <27`). The app itself runs on Electron's bundled Node.
