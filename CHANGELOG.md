@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-10-23
+
+- Dependencies: `electron` 44.9.3 → 45.0.0 (Chromium 156, Node 24.22.0; none of its breaking changes touch RepoDeck: the sandboxed preload uses no `Buffer`/`events`/`timers`/`url`). `vite` 8.3.5, `@codemirror/view` 6.43.15, `@codemirror/merge` 6.12.3, `lucide-react` 1.61.0, `zustand` 5.0.16, `@tanstack/react-virtual` 3.14.22, `@types/node` 24.19.2 (stays on 24 to match Electron's Node). Lockfile deduped so one `@codemirror/view` is installed.
+
 ## Unreleased — 2026-10-22
 
 - Security: `electron` 44.8.0 → 44.9.3. 44.9.1 is the first 44.x release that distrusts the compromised eMudhra root `emSign ECC Root CA - G3`; 44.8.0 still trusted it.
