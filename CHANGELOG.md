@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-10-31
+
+- Security: closed the one moderate `pnpm audit` finding (`minimatch`, GHSA-g3hv-75wg-m249, a denial of service through glob amplification) with pnpm overrides: `minimatch` 11.0.3, plus `@electron/asar` 4.3.1, `@electron/universal` 3.0.6 and its `glob` 14.0.3 so the packaging tools run on the new minimatch API (a bare minimatch override emptied the universal macOS app.asar merge). It reached the project only through `electron-builder`'s packaging tools, never the shipped app. `pnpm audit` now reports no known vulnerabilities.
+- Dependencies: `electron` 45.0.0 → 45.2.1, `electron-builder` 26.15.3 → 26.18.0, `electron-updater` 6.8.9 → 6.8.11, `lucide-react` 1.61.0 → 1.66.0, `@tanstack/react-virtual` 3.14.22 → 3.14.24. `@types/node` stays on 24 to match Electron's bundled Node (types for Node 26 would describe APIs the app doesn't have).
+
 ## Unreleased — 2026-10-23
 
 - Dependencies: `electron` 44.9.3 → 45.0.0 (Chromium 156, Node 24.22.0; none of its breaking changes touch RepoDeck: the sandboxed preload uses no `Buffer`/`events`/`timers`/`url`). `vite` 8.3.5, `@codemirror/view` 6.43.15, `@codemirror/merge` 6.12.3, `lucide-react` 1.61.0, `zustand` 5.0.16, `@tanstack/react-virtual` 3.14.22, `@types/node` 24.19.2 (stays on 24 to match Electron's Node). Lockfile deduped so one `@codemirror/view` is installed.
