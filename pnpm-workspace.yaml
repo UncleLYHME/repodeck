@@ -6,3 +6,4 @@ allowBuilds:
   esbuild: true
 overrides:
   "@codemirror/language": 6.13.1
+  "minimatch": 11.0.3
