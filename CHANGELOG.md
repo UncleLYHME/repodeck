@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-11-07
+
+- Dependencies: `electron` 45.2.1 → 45.2.3, `vite` 8.3.5 → 8.3.6, `@vitejs/plugin-react` 6.1.2 → 6.2.1, `tailwindcss`/`@tailwindcss/vite` 4.3.3 → 4.3.5, `lucide-react` 1.66.0 → 1.70.0, `@tanstack/react-virtual` 3.14.24 → 3.14.26, `vitest` 5.0.5 → 5.1.0, `@playwright/test` 1.64.1 → 1.65.0; lockfile deduped. `@types/node` stays on 24 to match Electron 45.2.3's bundled Node 24.22.2. `pnpm audit` reports no known vulnerabilities.
+
 ## Unreleased — 2026-10-31
 
 - Security: closed the one moderate `pnpm audit` finding (`minimatch`, GHSA-g3hv-75wg-m249, a denial of service through glob amplification) with pnpm overrides: `minimatch` 11.0.3, plus `@electron/asar` 4.3.1, `@electron/universal` 3.0.6 and its `glob` 14.0.3 so the packaging tools run on the new minimatch API (a bare minimatch override emptied the universal macOS app.asar merge). It reached the project only through `electron-builder`'s packaging tools, never the shipped app. `pnpm audit` now reports no known vulnerabilities.
