@@ -1,5 +1,5 @@
 # Installers for Linux, macOS and Windows, published to GitHub Releases (see .github/workflows/release.yml).
-# Installed copies update themselves from there through electron-updater (src/main/updater.ts).
+# Installed copies check there for updates and open the release page (src/main/updater.ts).
 appId: dev.foundry.RepoDeck
 productName: RepoDeck
 copyright: Copyright © 2026 UncleLYHME

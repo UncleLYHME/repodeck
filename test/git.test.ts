@@ -1,9 +1,9 @@
-import { mkdirSync, unlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, symlinkSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { letter, isStaged, hasCommits } from '../src/shared/changes'
-import { GitError, run } from '../src/core/git/run'
-import { commitFileDiff, commitFiles, findRepos, log, parseRefs, status } from '../src/core/git/status'
+import { exec, GitError, run } from '../src/core/git/run'
+import { childRepos, commitFileDiff, commitFiles, findRepos, log, parseRefs, status } from '../src/core/git/status'
 import { commit } from '../src/core/git/commit'
 import { backgroundFetch } from '../src/core/git/sync'
 import { byPath, commitAll, committedFiles, initRepo, tempDir, write } from './helpers'
@@ -86,6 +86,22 @@ describe('git', () => {
     await expect(backgroundFetch(clone)).rejects.toBeInstanceOf(GitError)
   })
 
+  it('does not execute a repository-selected fsmonitor program', async () => {
+    const repo = await initRepo()
+    const marker = join(repo, 'fsmonitor-ran')
+    const helper = join(repo, 'fsmonitor.mjs')
+    write(repo, 'fsmonitor.mjs', `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(marker)}, 'ran')\nprocess.stdout.write('token\\n')\n`)
+    const command = `"${process.execPath.replaceAll('\\', '/')}" "${helper.replaceAll('\\', '/')}"`
+    await run(repo, ['config', '--local', 'core.fsmonitor', command])
+    await status(repo)
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  it('stops a child process before buffering more than the output safety limit', async () => {
+    const script = 'const b=Buffer.alloc(1024*1024); for(let i=0;i<20;i++) process.stdout.write(b)'
+    await expect(exec(process.execPath, ['-e', script], undefined)).rejects.toThrow('output exceeded the 16 MiB safety limit')
+  })
+
   it('lists commit files with letters, renames and merges', async () => {
     const repo = await initRepo()
     for (const n of ['keep.txt', 'old.txt', 'gone.txt']) write(repo, n, `${n} content\n`)
@@ -130,5 +146,13 @@ describe('git', () => {
     expect(await findRepos(parent)).toEqual([join(parent, 'one')])
     const repo = await initRepo()
     expect(await findRepos(repo)).toEqual([repo])
+  })
+
+  it('does not auto-discover a repository through a directory symlink', async () => {
+    const watched = tempDir()
+    const outside = await initRepo()
+    const linked = join(watched, 'linked')
+    symlinkSync(outside, linked, process.platform === 'win32' ? 'junction' : 'dir')
+    expect(childRepos(watched)).toEqual([])
   })
 })

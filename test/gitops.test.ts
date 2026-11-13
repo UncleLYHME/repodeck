@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { isPartial, isStaged, hunkPatch } from '../src/shared/changes'
@@ -157,6 +157,17 @@ describe('gitops', () => {
 
     await ops.ignore(repo, '/a.txt') // a regular file still works
     expect(readFileSync(join(repo, '.gitignore'), 'utf8')).toBe('/a.txt\n')
+  })
+
+  it('replaces an existing .gitignore atomically', async () => {
+    const { repo } = await setup()
+    const path = join(repo, '.gitignore')
+    writeFileSync(path, '/old/\n')
+    const before = lstatSync(path)
+    await ops.ignore(repo, '/new/')
+    const after = lstatSync(path)
+    expect([after.dev, after.ino]).not.toEqual([before.dev, before.ino])
+    expect(readFileSync(path, 'utf8')).toBe('/old/\n/new/\n')
   })
 
   it('offers no ignore choices that contain a line break', () => {

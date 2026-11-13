@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, statSync } from 'node:fs'
-import { join, normalize } from 'node:path'
+import { existsSync, lstatSync, readdirSync } from 'node:fs'
+import { dirname, join, normalize, resolve } from 'node:path'
 import type { Change, CommitFile, LogRow, Operation, RefKind, Status } from '../../shared/types'
 import { hasCommits } from '../../shared/changes'
 import { GitError, SEP, run, splitN } from './run'
@@ -79,10 +79,7 @@ export async function toplevel(path: string): Promise<string | null> {
 export function childRepos(folder: string): string[] {
   try {
     return readdirSync(folder, { withFileTypes: true })
-      .filter((d) => {
-        if (!d.isDirectory() && !(d.isSymbolicLink() && isDir(join(folder, d.name)))) return false
-        return existsSync(join(folder, d.name, '.git'))
-      })
+      .filter((d) => d.isDirectory() && isDirectChildRepo(folder, join(folder, d.name)))
       .map((d) => join(folder, d.name))
       .sort()
   } catch {
@@ -90,9 +87,13 @@ export function childRepos(folder: string): string[] {
   }
 }
 
-function isDir(p: string): boolean {
+/** Automatic discovery accepts only real direct-child repositories with real .git directories. */
+export function isDirectChildRepo(folder: string, repo: string): boolean {
+  const root = resolve(folder)
+  const candidate = resolve(repo)
+  if (dirname(candidate) !== root) return false
   try {
-    return statSync(p).isDirectory()
+    return lstatSync(candidate).isDirectory() && lstatSync(join(candidate, '.git')).isDirectory()
   } catch {
     return false
   }

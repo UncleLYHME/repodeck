@@ -4,7 +4,7 @@ import { existsSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type { DeckState, GroupState, HistoryState, RepoState, Settings } from '../shared/types'
 import { basename, plural } from '../shared/time'
-import { childRepos, findRepos, status as gitStatus, toplevel } from './git/status'
+import { childRepos, findRepos, isDirectChildRepo, status as gitStatus, toplevel } from './git/status'
 import { backgroundFetch } from './git/sync'
 import { type Config, loadConfig, saveConfig } from './config'
 import { log } from './activity'
@@ -48,7 +48,9 @@ export class Deck {
     for (const g of config.groups) {
       if (!g.repos.length && !g.watch) continue
       const group = this.addGroup(g.folder, g.expanded, g.watch, g.hidden, g.auto_pull)
-      for (const repo of g.repos) this.addRepo(group, repo)
+      for (const repo of g.repos) {
+        if (!g.watch || isDirectChildRepo(g.folder, repo)) this.addRepo(group, repo)
+      }
       this.syncFolder(group) // pick up projects created or deleted while the app was closed
     }
     this.timers.push(setInterval(() => this.fetchDue(), FETCH_CHECK_MS))
@@ -138,7 +140,7 @@ export class Deck {
 
   /** Folder event: drop projects that are gone, add new ones when watching. */
   syncFolder(group: Group, announce = false): void {
-    const gone = group.repos.filter((p) => !existsSync(`${p}/.git`))
+    const gone = group.repos.filter((p) => !existsSync(`${p}/.git`) || (group.watching && !isDirectChildRepo(group.folder, p)))
     for (const p of gone) this.dropRepo(group, p, false)
     const known = new Set([...this.allPaths(), ...group.hidden])
     const added = group.watching ? childRepos(group.folder).filter((r) => !known.has(r)) : []
@@ -248,6 +250,7 @@ export class Deck {
   /** Auto-pull is on globally and for the folder this repo is in. */
   autoPullFor(path: string): boolean {
     const group = this.groups.find((g) => g.repos.includes(path))
+    if (group?.watching && !isDirectChildRepo(group.folder, path)) return false
     return this.settings.autoPull && (!group || group.autoPull)
   }
 
@@ -268,6 +271,8 @@ export class Deck {
     const now = Date.now()
     const runs: Promise<void>[] = []
     for (const r of this.repos.values()) {
+      const group = this.groups.find((g) => g.repos.includes(r.path))
+      if (group?.watching && !isDirectChildRepo(group.folder, r.path)) continue
       if (r.fetching || (dueOnly && now - r.lastFetch < interval)) continue
       r.fetching = true
       const behind = r.status?.behind ?? 0

@@ -15,6 +15,7 @@ export const ENV: Record<string, string | undefined> = {
 export const QUIET_ENV = { GIT_ASKPASS: 'true', SSH_ASKPASS_REQUIRE: 'never' }
 export const NETWORK_TIMEOUT = 120_000
 export const SEP = '\x1f'
+const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
 export interface RunOptions {
   check?: boolean // throw GitError on a non-zero exit (default true)
@@ -45,25 +46,49 @@ export function exec(cmd: string, args: string[], cwd: string | undefined, opts:
     }
     const out: Buffer[] = []
     const err: Buffer[] = []
+    let outputBytes = 0
+    let outputExceeded = false
     let timedOut = false
     let timer: ReturnType<typeof setTimeout> | undefined
+    let killTimer: ReturnType<typeof setTimeout> | undefined
+    const stop = () => {
+      if (killTimer) return
+      child.kill('SIGTERM')
+      killTimer = setTimeout(() => child.kill('SIGKILL'), 2000)
+      killTimer.unref()
+    }
     if (opts.timeout) {
       timer = setTimeout(() => {
         timedOut = true
-        child.kill('SIGTERM')
-        setTimeout(() => child.kill('SIGKILL'), 2000).unref()
+        stop()
       }, opts.timeout)
     }
-    child.stdout!.on('data', (b: Buffer) => out.push(b))
-    child.stderr!.on('data', (b: Buffer) => err.push(b))
+    const collect = (chunks: Buffer[]) => (b: Buffer) => {
+      if (outputExceeded) return
+      outputBytes += b.length
+      if (outputBytes > MAX_OUTPUT_BYTES) {
+        outputExceeded = true
+        stop()
+        return
+      }
+      chunks.push(b)
+    }
+    child.stdout!.on('data', collect(out))
+    child.stderr!.on('data', collect(err))
     child.on('error', (e) => {
       if (timer) clearTimeout(timer)
+      if (killTimer) clearTimeout(killTimer)
       reject(e)
     })
     child.on('close', (code) => {
       if (timer) clearTimeout(timer)
+      if (killTimer) clearTimeout(killTimer)
       if (timedOut) {
         reject(new GitError(`${cmd} ${args.find((a) => !a.startsWith('-')) ?? ''} timed out`.trim()))
+        return
+      }
+      if (outputExceeded) {
+        reject(new GitError(`${cmd} output exceeded the 16 MiB safety limit`))
         return
       }
       resolve({ code: code ?? 1, stdout: Buffer.concat(out).toString('utf8'), stderr: Buffer.concat(err).toString('utf8') })
@@ -76,7 +101,7 @@ export function exec(cmd: string, args: string[], cwd: string | undefined, opts:
 }
 
 export async function run(repo: string, args: string[], opts: RunOptions = {}): Promise<string> {
-  const r = await exec('git', ['-c', 'core.quotepath=off', '-C', repo, ...args], undefined, opts)
+  const r = await exec('git', ['-c', 'core.quotepath=off', '-c', 'core.fsmonitor=false', '-C', repo, ...args], undefined, opts)
   if (opts.check !== false && r.code !== 0) {
     throw new GitError((r.stderr || r.stdout).trim() || `git ${args[0]} failed`)
   }

@@ -102,3 +102,13 @@ describe('scripts/release-notes.mjs', () => {
     expect(r.err).toContain('v7.7.7')
   })
 })
+
+describe('workflow isolation', () => {
+  it('keeps repository-controlled jobs off persistent self-hosted runners', () => {
+    const workflows = ['ci.yml', 'release.yml']
+      .map((name) => readFileSync(join(root, '.github', 'workflows', name), 'utf8'))
+      .join('\n')
+    expect(workflows).not.toMatch(/self-hosted|foundry/i)
+    expect(workflows).toContain('runs-on: ubuntu-latest')
+  })
+})

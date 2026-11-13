@@ -131,7 +131,7 @@ export interface UpdateStatus {
   version: string | null // what's coming: "2.1.4", or "2.1.0 · a1b2c3d" for a checkout
   notes: string[]
   progress: number // 0-100 while downloading
-  manual: boolean // can't install itself (unsigned macOS app, .deb): Update opens the download page
+  manual: boolean // unsigned installer: Update opens the download page instead of installing it
   url?: string
   checkedAt: number | null // ms since the epoch
   error?: string

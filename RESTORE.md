@@ -2,10 +2,10 @@
 
 - **What it is:** RepoDeck, an Electron desktop app giving a bird's-eye view of several git repositories. A desktop tool, **not a deployed service** (no Coolify app, no container, no domain).
 - **Where it exists:**
-  - GitHub `UncleLYHME/repodeck` (public). Installers are built by GitHub Actions and published as Releases (latest verified: v2.2.6, with AppImage, `.deb`, `.dmg`, `.exe`).
+  - GitHub `UncleLYHME/repodeck` (public). Installers are built by GitHub Actions and published as Releases (latest verified: v2.2.15, with AppImage, `.deb`, `.dmg`, `.exe`).
   - Harbor: source checkout `/root/Documents/projects/Personal/repodeck`, installed with `./install.sh` (`~/.local/bin/repodeck`, menu entry `dev.foundry.RepoDeck.desktop`).
   - Foundry: `repodeck` 2.2.6 `.deb` installed (`/opt/RepoDeck`).
-  - CI: `ci.yml` and `release.yml` use the self-hosted runner `actions-runner@repodeck.service` on Foundry (account `ghrunner`, `/srv/ghrunner/runners/repodeck`), except fork PRs, which use GitHub-hosted runners.
+  - CI: `ci.yml` and `release.yml` use fresh GitHub-hosted runners; no repository workflow targets the persistent Foundry runner.
 - **URL:** https://github.com/UncleLYHME/repodeck/releases/latest
 
 ## Depends on
@@ -24,7 +24,7 @@ gh repo clone UncleLYHME/repodeck /root/Documents/projects/Personal/repodeck
 cd /root/Documents/projects/Personal/repodeck && ./install.sh   # deps, first build, `repodeck` command and menu entry; safe to re-run
 ```
 3. Click **Add Folder** and re-add your repositories.
-4. CI runner (only if Foundry is rebuilt): re-create `actions-runner@repodeck` with the hand-registration commands under "Public repos" in homelab `services/github-runner/README.md` (`register.sh` skips public repos, so it won't do it). Until it is back, jobs that target `[self-hosted, foundry]` queue and releases stall.
+4. No CI runner restoration is needed; GitHub provides disposable hosted runners for tests and releases.
 
 ## Verify
 ```sh

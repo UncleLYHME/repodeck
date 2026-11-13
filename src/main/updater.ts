@@ -1,9 +1,8 @@
 // Updates for installed copies, from GitHub Releases (electron-updater). Copies run from a git
 // checkout update through the checkout instead (src/core/update.ts).
 //
-// The flow: a new release is announced (available) -> Update downloads it in the background ->
-// ready: it installs the next time RepoDeck quits, or right away with Restart Now. With "Install
-// Updates Automatically" the download starts by itself.
+// The flow: a new release is announced (available) -> Download opens the tagged release page.
+// Automatic installation remains off until release packages have independent signing identities.
 
 import { app, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
@@ -16,13 +15,10 @@ const CHECK_EVERY_MS = 15 * 60_000
 const debug = (...args: unknown[]) => process.env.REPODECK_DEBUG && console.log('[updater]', ...args)
 
 /**
- * Copies that can replace themselves: Windows installs and Linux AppImages. The macOS app isn't
- * signed yet (macOS only installs signed updates) and a .deb belongs to the package manager, so
- * those are offered the download instead.
+ * Release packages are not independently signed yet, so installed copies offer the release page
+ * instead of downloading and executing an update through the GitHub release channel alone.
  */
 export function canSelfUpdate(): boolean {
-  if (process.platform === 'win32') return true
-  if (process.platform === 'linux') return Boolean(process.env.APPIMAGE)
   return false
 }
 

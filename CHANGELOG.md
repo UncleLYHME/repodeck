@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-11-13
+
+- Security: automatic Git inspection disables repository-selected `core.fsmonitor`, watched folders reject and recheck symlinked repositories before background fetch/pull, Git subprocess output is capped at 16 MiB, and `.gitignore` updates use verified reads plus atomic replacement to prevent Windows symlink races.
+- Security: CI and releases now run only on fresh GitHub-hosted runners. Unsigned Windows and AppImage packages no longer self-install; all packaged builds open the GitHub release page for manual download until independent signing is configured.
+
 ## Unreleased — 2026-11-12
 
 - Security: `vite` 8.3.6 → 8.3.7 (dev-server advisory affecting 8.3.0–8.3.6) and build tooling/CI Node 26.12.1 → 26.13.1 (`.nvmrc`, `engines` `>=26.13.1 <27`, CI and release workflows) for the Node.js 26.x security release. The app itself still runs on Electron's bundled Node.

@@ -27,7 +27,7 @@ concurrency:
 jobs:
   draft:
     if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-    runs-on: [self-hosted, foundry]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write # creates the draft release (and deletes a stale one)
@@ -79,10 +79,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux builds on Foundry's self-hosted runner; macOS and Windows need GitHub's runners.
+        # Every installer builds on a fresh GitHub-hosted runner.
         include:
           - platform: linux
-            runner: [self-hosted, foundry]
+            runner: ubuntu-latest
           - platform: macos
             runner: macos-latest
           - platform: windows
@@ -114,7 +114,7 @@ jobs:
 
   publish:
     needs: [draft, build]
-    runs-on: [self-hosted, foundry]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write # publishes the draft

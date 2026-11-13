@@ -15,9 +15,8 @@ concurrency:
 
 jobs:
   test:
-    # Foundry's self-hosted runner. Pull requests from forks stay on GitHub's runners; the repo also
-    # requires approval before any outside contributor's workflow runs, since a fork can edit this file.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","foundry"]') }}
+    # Repository-controlled build and test commands never run on a persistent machine.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

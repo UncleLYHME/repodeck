@@ -1,7 +1,8 @@
 // Working-tree operations beyond commit/sync: discard, hunks, branches, ignore, stash, abort, identity.
 
 import { constants, lstatSync, readdirSync } from 'node:fs'
-import { open } from 'node:fs/promises'
+import { lstat, open, rename, unlink } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Branches, Change, Hunk, Operation, Profile, Status } from '../../shared/types'
@@ -130,18 +131,33 @@ export async function ignore(repo: string, pattern: string, untrack: string[] = 
   const info = lstatOrNull(path)
   if (info?.isSymbolicLink()) throw new GitError('.gitignore is a symbolic link; refusing to write through it.')
   if (info && !info.isFile()) throw new GitError('.gitignore is not a regular file.')
-  // O_NOFOLLOW closes the window between the check above and the open (a no-op flag on Windows).
-  const file = await open(path, constants.O_RDWR | constants.O_CREAT | (constants.O_NOFOLLOW ?? 0), 0o644)
+  let text = ''
+  const file = info ? await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)) : null
   try {
-    if (!(await file.stat()).isFile()) throw new GitError('.gitignore is not a regular file.')
-    let text = await file.readFile('utf8')
-    if (!text.split(/\r?\n/).includes(pattern)) {
-      if (text && !text.endsWith('\n')) text += '\n'
-      await file.truncate(0)
-      await file.write(text + pattern + '\n', 0, 'utf8')
+    if (file) {
+      const [opened, current] = await Promise.all([file.stat({ bigint: true }), lstat(path, { bigint: true })])
+      if (!current.isFile() || opened.dev !== current.dev || opened.ino !== current.ino) {
+        throw new GitError('.gitignore changed while it was being opened; refusing to write it.')
+      }
+      text = await file.readFile('utf8')
     }
   } finally {
-    await file.close()
+    await file?.close()
+  }
+  if (!text.split(/\r?\n/).includes(pattern)) {
+    if (text && !text.endsWith('\n')) text += '\n'
+    const temp = join(repo, `.gitignore.repodeck-${randomUUID()}.tmp`)
+    const replacement = await open(temp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, info ? Number(info.mode) & 0o777 : 0o644)
+    try {
+      await replacement.writeFile(text + pattern + '\n', 'utf8')
+      await replacement.sync()
+      await replacement.close()
+      await rename(temp, path)
+    } catch (error) {
+      await replacement.close().catch(() => {})
+      await unlink(temp).catch(() => {})
+      throw error
+    }
   }
   if (untrack.length) await run(repo, ['rm', '--cached', '-q', '-r', '--ignore-unmatch', '--', ...untrack])
 }

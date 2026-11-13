@@ -75,15 +75,15 @@ Download the latest release for your platform from **[Releases](https://github.c
 
 | Platform | File | Updates |
 | --- | --- | --- |
-| Linux | `RepoDeck-x.y.z.AppImage` (make it executable and run it) | Automatic |
+| Linux | `RepoDeck-x.y.z.AppImage` (make it executable and run it) | In-app prompt to download |
 | Linux (Debian, Ubuntu) | `repodeck_x.y.z_amd64.deb` | In-app prompt to download |
 | macOS (Apple Silicon / Intel) | `RepoDeck-x.y.z-arm64.dmg` / `RepoDeck-x.y.z.dmg` | In-app prompt to download |
-| Windows 10/11 | `RepoDeck-Setup-x.y.z.exe` | Automatic |
+| Windows 10/11 | `RepoDeck-Setup-x.y.z.exe` | In-app prompt to download |
 
 RepoDeck needs **git** on your PATH. Optional: the [GitHub CLI](https://cli.github.com) (`gh auth login`) for pull requests and CI on Home, and VS Code's `code` command for opening files.
 
 > [!NOTE]
-> The macOS app isn't signed with an Apple Developer ID. The first time, right-click RepoDeck in Applications and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/RepoDeck.app`). Windows may show a SmartScreen prompt for the same reason.
+> Release packages are not code-signed yet. RepoDeck therefore opens the GitHub release page instead of installing packages automatically. On macOS, right-click RepoDeck in Applications and choose **Open** the first time (or run `xattr -dr com.apple.quarantine /Applications/RepoDeck.app`). Windows may show a SmartScreen prompt.
 
 Then click **Add Folder** (Ctrl+O), or drag folders onto the window: a repository, or a folder that contains several.
 
@@ -92,12 +92,12 @@ Then click **Add Folder** (Ctrl+O), or drag folders onto the window: a repositor
 Every change that lands on `main` is released automatically, and RepoDeck tells you about it:
 
 1. Within 15 minutes of a release (or right away with **Check for Updates** in ☰ or Preferences), a card appears: **RepoDeck x.y.z is available**, with what changed.
-2. **Update** downloads it in the background, with progress. The sidebar shows an **Update** badge until it's installed.
-3. It installs **the next time you quit RepoDeck**, or right away with **Restart Now** (you're asked first if a commit message is still unsent).
+2. **Download** opens the tagged GitHub release page for the installer and release notes.
+3. Install the downloaded package using your platform's normal installer flow.
 
-Prefer not to be asked? Turn on **Preferences → Updates → Install Updates Automatically**: new versions download in the background and install when you quit. **Check for Updates Automatically** can be switched off too; **Check Now** always works.
+**Check for Updates Automatically** can be switched off; **Check Now** always works. Source checkouts can still update from their configured Git upstream, but unsigned release packages are never installed automatically.
 
-Windows and the AppImage install updates themselves. The unsigned macOS app and the .deb show **Download**, which opens the new release.
+All release packages show **Download**, which opens the new release.
 
 ### Keyboard shortcuts
 
@@ -158,9 +158,9 @@ Releases are automatic: push to `main`. When [CI](.github/workflows/ci.yml) pass
 
 1. picks the version: the next patch after the latest release, or `package.json`'s version if you raised it (do that for bigger changes, together with a `## x.y.z — date` section in [CHANGELOG.md](CHANGELOG.md));
 2. writes the notes: that CHANGELOG section if there is one, otherwise the `feat`/`fix`/`perf` commit subjects since the last release;
-3. builds Linux, macOS and Windows installers, attaches them to a GitHub release and publishes it. Installed copies offer it within 15 minutes.
+3. builds Linux, macOS and Windows installers, attaches them to a GitHub release and publishes it. Installed copies offer the download within 15 minutes.
 
-CI, the release bookkeeping and the Linux installers run on Foundry's self-hosted runner (labels `self-hosted, foundry`); the macOS and Windows installers build on GitHub's runners. Pull requests from forks run on GitHub's runners, and every outside contributor's workflow run waits for approval, because a fork can edit the workflow files.
+CI, release bookkeeping and every installer build run on fresh GitHub-hosted runners. Repository-controlled pull-request code never runs on a persistent machine.
 
 Run it by hand from the Actions tab (**Release → Run workflow**, optionally *force*) to release without a new change.
 
