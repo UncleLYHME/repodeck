@@ -155,4 +155,22 @@ describe('git', () => {
     symlinkSync(outside, linked, process.platform === 'win32' ? 'junction' : 'dir')
     expect(childRepos(watched)).toEqual([])
   })
+
+  it('keeps sibling worktrees but rejects .git files that escape the watched root', async () => {
+    const watched = tempDir()
+    const main = join(watched, 'main')
+    mkdirSync(main)
+    await initRepo(main)
+    write(main, 'base.txt')
+    await commitAll(main, 'base')
+    const worktree = join(watched, 'worktree')
+    await run(main, ['worktree', 'add', '-q', '-b', 'feature', worktree])
+
+    const outsideGit = join(tempDir(), 'outside.git')
+    const separated = join(watched, 'separated')
+    mkdirSync(separated)
+    await run(separated, ['init', '-q', '--separate-git-dir', outsideGit])
+
+    expect(childRepos(watched)).toEqual([main, worktree])
+  })
 })
