@@ -37,7 +37,7 @@ const saveDestination = (path: string): string => {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return destination
       throw error
     }
-    destination = resolve(dirname(destination), readlinkSync(destination))
+    destination = resolve(realpathSync(dirname(destination)), readlinkSync(destination))
   }
 }
 

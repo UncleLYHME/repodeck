@@ -1,5 +1,5 @@
 import { lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { loadConfig, saveConfig, type Config } from '../src/core/config'
 import { tempDir } from './helpers'
@@ -113,16 +113,26 @@ describe('config save', () => {
 
   it('updates symlink targets without replacing the links', () => {
     const dir = tempDir()
+    const expectSavedThrough = (path: string, target: string) => {
+      saveConfig(sample(dir), path)
+      expect(lstatSync(path).isSymbolicLink()).toBe(true)
+      expect(JSON.parse(readFileSync(target, 'utf8')).pinned).toEqual(['/a', '/m', '/z'])
+    }
     for (const [name, existing] of [['existing', true], ['missing', false]] as const) {
       const target = join(dir, `${name}-shared.json`)
       const path = join(dir, `${name}-repos.json`)
       if (existing) writeFileSync(target, '{}')
       symlinkSync(target, path)
-
-      saveConfig(sample(dir), path)
-
-      expect(lstatSync(path).isSymbolicLink()).toBe(true)
-      expect(JSON.parse(readFileSync(target, 'utf8')).pinned).toEqual(['/a', '/m', '/z'])
+      expectSavedThrough(path, target)
     }
+
+    const physical = join(dir, 'dotfiles', 'repodeck')
+    const logical = join(dir, 'config', 'repodeck')
+    const target = join(dir, 'dotfiles', 'shared', 'repos.json')
+    mkdirSync(physical, { recursive: true })
+    mkdirSync(dirname(logical), { recursive: true })
+    symlinkSync(physical, logical)
+    symlinkSync('../shared/repos.json', join(physical, 'repos.json'))
+    expectSavedThrough(join(logical, 'repos.json'), target)
   })
 })
