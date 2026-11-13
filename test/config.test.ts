@@ -111,16 +111,18 @@ describe('config save', () => {
     expect(cfg.groups[0].hidden).toEqual(['/y', '/b'])
   })
 
-  it('updates an existing symlink target without replacing the link', () => {
+  it('updates symlink targets without replacing the links', () => {
     const dir = tempDir()
-    const target = join(dir, 'shared.json')
-    const path = join(dir, 'repos.json')
-    writeFileSync(target, '{}')
-    symlinkSync(target, path)
+    for (const [name, existing] of [['existing', true], ['missing', false]] as const) {
+      const target = join(dir, `${name}-shared.json`)
+      const path = join(dir, `${name}-repos.json`)
+      if (existing) writeFileSync(target, '{}')
+      symlinkSync(target, path)
 
-    saveConfig(sample(dir), path)
+      saveConfig(sample(dir), path)
 
-    expect(lstatSync(path).isSymbolicLink()).toBe(true)
-    expect(JSON.parse(readFileSync(target, 'utf8')).pinned).toEqual(['/a', '/m', '/z'])
+      expect(lstatSync(path).isSymbolicLink()).toBe(true)
+      expect(JSON.parse(readFileSync(target, 'utf8')).pinned).toEqual(['/a', '/m', '/z'])
+    }
   })
 })

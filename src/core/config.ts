@@ -1,8 +1,8 @@
 // Settings and the folder list, in the same repos.json RepoDeck 1.x wrote.
 
 import { randomUUID } from 'node:crypto'
-import { chmodSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { chmodSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import type { Settings } from '../shared/types'
 import { configDir } from './paths'
 
@@ -22,6 +22,24 @@ export interface Config {
 }
 
 export const configPath = (): string => join(configDir(), 'repos.json')
+
+const saveDestination = (path: string): string => {
+  let destination = path
+  while (true) {
+    try {
+      return realpathSync(destination)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    try {
+      if (!lstatSync(destination).isSymbolicLink()) return destination
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return destination
+      throw error
+    }
+    destination = resolve(dirname(destination), readlinkSync(destination))
+  }
+}
 
 const isDir = (p: string) => {
   try {
@@ -83,13 +101,7 @@ export function saveConfig(config: Config, path = configPath()): void {
     pinned: [...config.pinned].sort(),
     groups: config.groups.map((g) => ({ ...g, hidden: [...g.hidden].sort() })),
   }
-  let destination = path
-  try {
-    destination = realpathSync(path)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-  }
-
+  const destination = saveDestination(path)
   const directory = dirname(destination)
   const contents = JSON.stringify(data, null, 2) + '\n'
   mkdirSync(directory, { recursive: true })
