@@ -1,7 +1,7 @@
 // Settings and the folder list, in the same repos.json RepoDeck 1.x wrote.
 
 import { randomUUID } from 'node:crypto'
-import { chmodSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { Settings } from '../shared/types'
 import { configDir } from './paths'
@@ -83,22 +83,29 @@ export function saveConfig(config: Config, path = configPath()): void {
     pinned: [...config.pinned].sort(),
     groups: config.groups.map((g) => ({ ...g, hidden: [...g.hidden].sort() })),
   }
-  const directory = dirname(path)
+  let destination = path
+  try {
+    destination = realpathSync(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+
+  const directory = dirname(destination)
   const contents = JSON.stringify(data, null, 2) + '\n'
   mkdirSync(directory, { recursive: true })
 
   let mode = 0o600
   try {
-    mode = statSync(path).mode & 0o777
+    mode = statSync(destination).mode & 0o777
   } catch {
     // New config files are private by default.
   }
 
-  const temporaryPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`)
+  const temporaryPath = join(directory, `.${basename(destination)}.${randomUUID()}.tmp`)
   try {
     writeFileSync(temporaryPath, contents, { encoding: 'utf8', flag: 'wx', mode })
     chmodSync(temporaryPath, mode)
-    renameSync(temporaryPath, path)
+    renameSync(temporaryPath, destination)
   } catch (error) {
     try {
       unlinkSync(temporaryPath)

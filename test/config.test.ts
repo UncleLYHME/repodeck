@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { loadConfig, saveConfig, type Config } from '../src/core/config'
@@ -109,5 +109,18 @@ describe('config save', () => {
     expect(JSON.parse(readFileSync(join(dir, 'deep', 'er', 'repos.json'), 'utf8')).pinned).toEqual(['/a', '/m', '/z'])
     expect(cfg.pinned).toEqual(['/z', '/a', '/m'])
     expect(cfg.groups[0].hidden).toEqual(['/y', '/b'])
+  })
+
+  it('updates an existing symlink target without replacing the link', () => {
+    const dir = tempDir()
+    const target = join(dir, 'shared.json')
+    const path = join(dir, 'repos.json')
+    writeFileSync(target, '{}')
+    symlinkSync(target, path)
+
+    saveConfig(sample(dir), path)
+
+    expect(lstatSync(path).isSymbolicLink()).toBe(true)
+    expect(JSON.parse(readFileSync(target, 'utf8')).pinned).toEqual(['/a', '/m', '/z'])
   })
 })
