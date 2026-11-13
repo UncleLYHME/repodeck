@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
-import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path'
+import { existsSync, lstatSync, readdirSync, realpathSync } from 'node:fs'
+import { dirname, join, normalize, resolve } from 'node:path'
 import type { Change, CommitFile, LogRow, Operation, RefKind, Status } from '../../shared/types'
 import { hasCommits } from '../../shared/changes'
 import { GitError, SEP, run, splitN } from './run'
@@ -87,7 +87,7 @@ export function childRepos(folder: string): string[] {
   }
 }
 
-/** Automatic discovery accepts only real direct children whose Git metadata stays in the watched root. */
+/** Automatic discovery accepts only real direct children with a non-symlink .git entry. */
 export function isDirectChildRepo(folder: string, repo: string): boolean {
   try {
     const lexicalRoot = resolve(folder)
@@ -96,15 +96,8 @@ export function isDirectChildRepo(folder: string, repo: string): boolean {
     const root = realpathSync(lexicalRoot)
     const candidate = realpathSync(lexicalCandidate)
     if (dirname(candidate) !== root) return false
-    const dotGit = join(candidate, '.git')
-    const info = lstatSync(dotGit)
-    if (info.isDirectory()) return true
-    if (!info.isFile()) return false
-    const match = /^gitdir:\s*(.+)$/i.exec(readFileSync(dotGit, 'utf8').trim())
-    if (!match) return false
-    const gitDir = realpathSync(resolve(candidate, match[1]))
-    const fromRoot = relative(root, gitDir)
-    return Boolean(fromRoot) && fromRoot !== '..' && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot)
+    const info = lstatSync(join(candidate, '.git'))
+    return info.isDirectory() || info.isFile()
   } catch {
     return false
   }
