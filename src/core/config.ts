@@ -1,7 +1,8 @@
 // Settings and the folder list, in the same repos.json RepoDeck 1.x wrote.
 
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { chmodSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import type { Settings } from '../shared/types'
 import { configDir } from './paths'
 
@@ -82,6 +83,28 @@ export function saveConfig(config: Config, path = configPath()): void {
     pinned: [...config.pinned].sort(),
     groups: config.groups.map((g) => ({ ...g, hidden: [...g.hidden].sort() })),
   }
-  if (!existsSync(dirname(path))) mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, JSON.stringify(data, null, 2) + '\n')
+  const directory = dirname(path)
+  const contents = JSON.stringify(data, null, 2) + '\n'
+  mkdirSync(directory, { recursive: true })
+
+  let mode = 0o600
+  try {
+    mode = statSync(path).mode & 0o777
+  } catch {
+    // New config files are private by default.
+  }
+
+  const temporaryPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`)
+  try {
+    writeFileSync(temporaryPath, contents, { encoding: 'utf8', flag: 'wx', mode })
+    chmodSync(temporaryPath, mode)
+    renameSync(temporaryPath, path)
+  } catch (error) {
+    try {
+      unlinkSync(temporaryPath)
+    } catch {
+      // The temporary file was never created or was already renamed.
+    }
+    throw error
+  }
 }
