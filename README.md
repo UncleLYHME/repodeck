@@ -160,7 +160,7 @@ Releases are automatic: push to `main`. When [CI](.github/workflows/ci.yml) pass
 2. writes the notes: that CHANGELOG section if there is one, otherwise the `feat`/`fix`/`perf` commit subjects since the last release;
 3. builds Linux, macOS and Windows installers, attaches them to a GitHub release and publishes it. Installed copies offer the download within 15 minutes.
 
-CI, release bookkeeping and every installer build run on fresh GitHub-hosted runners. Repository-controlled pull-request code never runs on a persistent machine.
+CI, release bookkeeping and the Linux installer build run on the self-hosted Foundry runner; the macOS and Windows installers build on GitHub-hosted runners. Pull requests from forks run CI on GitHub-hosted runners and never reach Foundry.
 
 Run it by hand from the Actions tab (**Release → Run workflow**, optionally *force*) to release without a new change.
 

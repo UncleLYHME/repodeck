@@ -5,7 +5,7 @@
   - GitHub `UncleLYHME/repodeck` (public). Installers are built by GitHub Actions and published as Releases (latest verified: v2.2.15, with AppImage, `.deb`, `.dmg`, `.exe`).
   - Harbor: source checkout `/root/Documents/projects/Personal/repodeck`, installed with `./install.sh` (`~/.local/bin/repodeck`, menu entry `dev.foundry.RepoDeck.desktop`).
   - Foundry: `repodeck` 2.2.6 `.deb` installed (`/opt/RepoDeck`).
-  - CI: `ci.yml` and `release.yml` use fresh GitHub-hosted runners; no repository workflow targets the persistent Foundry runner.
+  - CI: `ci.yml` and `release.yml` Linux jobs run on the self-hosted Foundry runner (`foundry-repodeck`); fork pull requests and the macOS/Windows installer builds use GitHub-hosted runners.
 - **URL:** https://github.com/UncleLYHME/repodeck/releases/latest
 
 ## Depends on
