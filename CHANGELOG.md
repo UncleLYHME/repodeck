@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-11-14
+
+- Dependencies: `electron` 45.2.3 → 45.3.2 (Chromium 156.0.8078.100 with upstream security backports; stops trusting eMudhra's revoked RSA intermediates), `vite` 8.3.7 → 8.3.8, `@vitejs/plugin-react` 6.2.1 → 6.3.0, `zustand` 5.0.16 → 5.1.0, `lucide-react` 1.70.0 → 1.72.0; packaging-tool overrides `minimatch` 11.0.3 → 11.0.8, `@electron/asar` 4.3.1 → 4.3.2 and its `glob` 14.0.3 → 14.0.6. `@types/node` stays on 24 to match Electron 45.3.2's bundled Node 24.22.2. `pnpm audit` reports no known vulnerabilities.
+
 ## Unreleased — 2026-11-13
 
 - Security: automatic Git inspection disables repository-selected `core.fsmonitor`, watched folders reject and recheck symlinked repositories before background fetch/pull, Git subprocess output is capped at 16 MiB, and `.gitignore` updates use verified reads plus atomic replacement to prevent Windows symlink races.
