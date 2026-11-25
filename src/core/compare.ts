@@ -4,7 +4,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Change, CommitFile, Status } from '../shared/types'
 import { hasCommits } from '../shared/changes'
-import { run } from './git/run'
+import { commitHash, run } from './git/run'
 
 export const MAX_BYTES = 1_500_000
 
@@ -18,7 +18,7 @@ function check(text: string): string {
 }
 
 async function showSpec(repo: string, spec: string): Promise<string> {
-  return check(await run(repo, ['show', spec], { check: false }))
+  return check(await run(repo, ['show', '--end-of-options', spec], { check: false }))
 }
 
 /** [old, new] for a working-tree change: last commit vs the file on disk. */
@@ -41,7 +41,8 @@ export async function workingVersions(repo: string, st: Status, change: Change):
 
 /** [old, new] for one file of a commit, against its first parent. */
 export async function commitVersions(repo: string, sha: string, f: CommitFile): Promise<[string, string]> {
-  const old = f.letter === 'A' ? '' : await showSpec(repo, `${sha}^:${f.orig ?? f.path}`)
-  const current = f.letter === 'D' ? '' : await showSpec(repo, `${sha}:${f.path}`)
+  const rev = commitHash(sha)
+  const old = f.letter === 'A' ? '' : await showSpec(repo, `${rev}^:${f.orig ?? f.path}`)
+  const current = f.letter === 'D' ? '' : await showSpec(repo, `${rev}:${f.path}`)
   return [old, current]
 }

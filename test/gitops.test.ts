@@ -93,6 +93,20 @@ describe('gitops', () => {
     expect([st.branch, st.upstream]).toEqual(['feature/x', 'origin/feature/x'])
   })
 
+  it('refuses branch names that git would read as options', async () => {
+    const { repo } = await setup()
+    // `git switch --orphan=<name>` starts an empty branch and removes every tracked file.
+    await expect(ops.switchBranch(repo, '--orphan=wiped')).rejects.toBeInstanceOf(GitError)
+    await expect(ops.switchBranch(repo, '-')).rejects.toBeInstanceOf(GitError)
+    await expect(ops.switchBranch(repo, '')).rejects.toBeInstanceOf(GitError)
+    await expect(ops.switchRemote(repo, '--orphan=wiped/x')).rejects.toBeInstanceOf(GitError)
+    await expect(ops.switchRemote(repo, 'origin/-x')).rejects.toBeInstanceOf(GitError)
+    await expect(ops.switchRemote(repo, 'origin')).rejects.toBeInstanceOf(GitError) // no branch after the remote
+    expect((await status(repo)).branch).toBe('main')
+    expect(existsSync(join(repo, 'a.txt'))).toBe(true)
+    expect((await ops.branches(repo)).local.map(([n]) => n)).toEqual(['main'])
+  })
+
   it('round-trips a stash and aborts a merge', async () => {
     const { repo } = await setup()
     write(repo, 'a.txt', 'wip\n')

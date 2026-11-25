@@ -108,6 +108,23 @@ export async function run(repo: string, args: string[], opts: RunOptions = {}): 
   return r.stdout
 }
 
+/**
+ * A commit hash, as `git log` printed it and the renderer hands it back. Hex only, so git can never
+ * read it as an option (`--output=<file>` would overwrite that file) or as anything but a commit.
+ */
+export function commitHash(sha: string): string {
+  if (typeof sha !== 'string' || !/^[0-9a-f]{4,64}$/i.test(sha)) throw new GitError('That is not a commit hash.')
+  return sha
+}
+
+/** A branch name git reads as a name: one starting with "-" would be taken for an option (`--orphan=x`). */
+export function branchName(name: string): string {
+  if (typeof name !== 'string' || !name || name.startsWith('-') || /[\0-\x1f\x7f]/.test(name)) {
+    throw new GitError(`'${String(name)}' isn't a valid branch name.`)
+  }
+  return name
+}
+
 /** Split like Python's str.split(sep, n): at most n splits, the remainder stays in the last part. */
 export function splitN(s: string, sep: string, n: number): string[] {
   const parts: string[] = []
