@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — 2026-11-25
+
+- Security: a review of the whole app, written up in [docs/security/2026-11-25-review.md](docs/security/2026-11-25-review.md). What you may notice:
+  - **Show New Projects Automatically** asks in a system dialog before a folder's other repositories join the deck.
+  - A folder joins the deck only when you pick it (Add Folder, a drop on the window, the command line). The page can no longer add one by itself.
+  - The cache and the activity log are readable by your account only. Files from earlier versions are replaced by private ones the first time they are read; a link, pipe or second name for another file found in their place is replaced, never written through.
+  - **Open in Files** shows only repositories of the deck and the settings folder. On macOS a folder named like a bundle (`Tool.app`) is revealed in Finder instead of being run.
+  - Pull requests and CI runs are shown only for a remote that is on github.com itself. An address that merely contains `github.com` (another server's path, a local folder) no longer counts.
+- Security: what the review fixed underneath. Commit hashes and branch names that look like git options are refused, so a crafted request can't make git write a file or orphan a branch. Compare and Discard stay inside the repository, also where git reports a path through a symlink. The core runs only its registered methods and checks the type of every argument, setting and group change. Main answers only the top frame of RepoDeck's own page (any `file:` page used to pass), hands only parsed `http(s)` links to the system, and refuses unknown update actions and all permission requests. The page is served at an address of its own (`repodeck://app`) instead of from a file, so no other file on the disk counts as part of it, and carries a content security policy: its own scripts, styles and images, nothing inline or evaluated, nothing remote.
+
 ## Unreleased — 2026-11-21
 
 - Dependencies: `electron` 45.3.2 → 45.4.1 (still Chromium 156.0.8078.100, plus backported Chromium, V8, ANGLE, FFmpeg and PDFium security fixes; bundled Node 24.22.3), `@playwright/test` 1.65.0 → 1.65.1, `vitest` 5.1.0 → 5.1.1, `lucide-react` 1.72.0 → 1.77.0. `@types/node` stays on 24 (24.19.2) to match Electron 45.4.1's bundled Node 24.22.3. `pnpm audit` reports no known vulnerabilities.

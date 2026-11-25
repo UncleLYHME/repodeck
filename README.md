@@ -122,7 +122,9 @@ Settings and the folder list, a cache of git and GitHub results, and the activit
 | Cache | `~/.cache/repodeck` | `…/RepoDeck/Cache` | `…\RepoDeck\Cache` |
 | Activity log | `~/.local/state/repodeck` | `…/RepoDeck/State` | `…\RepoDeck\State` |
 
-RepoDeck has no telemetry. It talks to the network only through your own `git fetch`/`pull`/`push`, the `gh` CLI (when installed) and the update check against GitHub Releases. It only ever touches repositories you've added.
+The cache and the activity log hold commit, pull-request and repository details, so they are readable by your account only (mode `0600` on Linux and macOS; on Windows they sit in your profile).
+
+RepoDeck has no telemetry. It talks to the network only through your own `git fetch`/`pull`/`push`, the `gh` CLI (when installed) and the update check against GitHub Releases. It only ever touches repositories you've added: a folder joins the deck when you pick it (**Add Folder**, a drop on the window, the command line), and **Show New Projects Automatically** asks before a folder's other repositories join.
 
 ## Development
 
@@ -150,7 +152,9 @@ On Linux you can also run it straight from a checkout: `./install.sh` adds a `re
 | `src/renderer` | React, Tailwind, Zustand, Base UI, CodeMirror's merge view and TanStack Virtual; talks to the core over a MessagePort through a small typed bridge (`src/preload`) |
 | `src/shared` | Types, the commit-graph lane layout and the RPC protocol |
 
-Git runs with `GIT_OPTIONAL_LOCKS=0` (no fighting your editor for `index.lock`), `GIT_TERMINAL_PROMPT=0` and literal pathspecs. Results derived from history are cached until the repository's refs move. The page runs with context isolation and no Node access, and loads nothing remote.
+Git runs with `GIT_OPTIONAL_LOCKS=0` (no fighting your editor for `index.lock`), `GIT_TERMINAL_PROMPT=0` and literal pathspecs. Results derived from history are cached until the repository's refs move.
+
+The page runs sandboxed, with context isolation and no Node access. Main serves it at an address of its own (`repodeck://app`, the built page's folder and nothing else on the disk), under a content security policy (`src/shared/csp.ts`) that allows its own scripts, styles and images and nothing remote. It is not trusted beyond that: the core checks every argument it sends and works only in repositories of the deck, and main answers only RepoDeck's own page, opens only deck folders and web links for it, and refuses every permission request. [docs/security](docs/security) has the reviews.
 
 ### Releasing
 
