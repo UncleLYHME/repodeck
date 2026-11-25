@@ -9,6 +9,7 @@ import type { Branches, Change, Hunk, Operation, Profile, Status } from '../../s
 import { hasCommits } from '../../shared/changes'
 import { basename } from '../../shared/time'
 import { GitError, branchName, run } from './run'
+import { worktreePath } from './worktree'
 
 const DIFF = ['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/']
 
@@ -21,9 +22,10 @@ export async function discard(repo: string, st: Status, changes: Change[], trash
   if (changes.some((c) => c.kind === 'conflict')) {
     throw new GitError("Conflicted files can't be discarded here; abort the merge or resolve them first.")
   }
+  // Only what git sees in the working tree: never a file elsewhere, reached through a linked folder or a crafted path.
   const bin = async (path: string) => {
-    const full = join(repo, path)
-    if (lexists(full)) await trash(full)
+    const full = await worktreePath(repo, path)
+    if (full && lexists(full)) await trash(full)
   }
   for (const c of changes) {
     if (c.kind === 'untracked') {

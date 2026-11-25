@@ -37,6 +37,23 @@ describe('gitops', () => {
     expect(readdirSync(binned).sort()).toEqual(['new.txt', 'staged-new.txt'])
   })
 
+  it.skipIf(process.platform === 'win32')('never bins a file that a linked folder leads to', async () => {
+    const { tmp, repo, binned, trash } = await setup()
+    write(repo, 'docs/keep.txt', 'new\n')
+    await run(repo, ['add', 'docs/keep.txt'])
+    // The folder of a file that is new in the index is moved out of the repository and linked back.
+    const outside = join(tmp, 'outside')
+    renameSync(join(repo, 'docs'), outside)
+    symlinkSync(outside, join(repo, 'docs'), 'dir')
+    const st = await status(repo)
+    const added = st.changes.filter((c) => c.path === 'docs/keep.txt')
+    expect(added.map((c) => c.x)).toEqual(['A'])
+    await ops.discard(repo, st, added, trash)
+    expect(readFileSync(join(outside, 'keep.txt'), 'utf8')).toBe('new\n')
+    expect(readdirSync(binned)).toEqual([])
+    expect((await status(repo)).changes.map((c) => c.path)).not.toContain('docs/keep.txt') // unstaged all the same
+  })
+
   it('discards a rename', async () => {
     const { repo, trash } = await setup()
     await run(repo, ['mv', 'b.txt', 'moved.txt'])
