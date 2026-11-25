@@ -2,8 +2,10 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
+import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { CSP } from './src/shared/csp'
 import { releaseOf } from './src/shared/release'
 
 // bin/repodeck builds into out.next and swaps it in, so a failed build never replaces a working one.
@@ -25,6 +27,14 @@ const version = () => releaseOf(
   git('describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', 'HEAD'),
 )
 
+// The built page carries its content security policy, ahead of everything it loads. The dev server's
+// page doesn't: hot reload needs an inline script and a socket.
+const contentSecurityPolicy = (): Plugin => ({
+  name: 'repodeck-csp',
+  apply: 'build',
+  transformIndexHtml: () => [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: CSP }, injectTo: 'head-prepend' }],
+})
+
 export default defineConfig({
   main: {
     define: { __BUILD_COMMIT__: JSON.stringify(commit()), __BUILD_VERSION__: JSON.stringify(version()) },
@@ -43,6 +53,6 @@ export default defineConfig({
     root: 'src/renderer',
     resolve: { alias: { '@shared': resolve('src/shared'), '@data': resolve('data') } },
     build: { outDir: `${out}/renderer`, minify: true, chunkSizeWarningLimit: 1000, sourcemap: process.env.REPODECK_SOURCEMAP === '1' },
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), contentSecurityPolicy()],
   },
 })

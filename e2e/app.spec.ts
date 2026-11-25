@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
+import { CSP } from '../src/shared/csp'
 import { type Fixture, git, launch, makeFixture } from './fixture'
 
 test.describe.configure({ mode: 'serial' })
@@ -14,9 +15,15 @@ const panel = (name: string): Locator => win.getByRole('article', { name })
 const changeRow = (repo: string, file: string): Locator =>
   panel(repo).getByRole('listitem').filter({ has: win.getByRole('checkbox', { name: `Commit ${file}` }) })
 
+// What the page's content security policy refused, as the browser reports it on the console.
+const refusedByPolicy: string[] = []
+
 test.beforeAll(async () => {
   f = makeFixture()
   ;({ app, win } = await launch(f))
+  win.on('console', (message) => {
+    if (/Content Security Policy/i.test(message.text())) refusedByPolicy.push(message.text())
+  })
 })
 
 test.afterAll(async () => {
@@ -174,6 +181,54 @@ test('with reduced motion the refresh icon stays still', async () => {
   await expect(button).toHaveAttribute('aria-busy', 'false', { timeout: 10_000 })
   await expect(button.locator('svg')).not.toHaveClass(/spin-soft/)
   await win.emulateMedia({ reducedMotion: 'no-preference' })
+})
+
+test('the page runs under a content security policy that its own code never trips', async () => {
+  const policy = () => win.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content'))
+  expect(await policy()).toBe(CSP)
+  // Everything shown so far (the deck, the compare and hunk views, history, analytics, preferences)
+  // loaded its scripts, styles and images within the policy. So does the page itself, loaded anew
+  // here so that it is watched from its first line.
+  await win.reload()
+  await expect(win.getByRole('button', { name: 'Projects', exact: true })).toBeVisible()
+  expect(await policy()).toBe(CSP)
+  expect(refusedByPolicy).toEqual([])
+
+  // What a page gone wrong would reach for is refused: script that isn't one of its own files, and the network.
+  const tried = await win.evaluate(async () => {
+    const refused: string[] = []
+    document.addEventListener('securitypolicyviolation', (e) => refused.push(e.effectiveDirective))
+    // The debugger that runs this for the test lets it evaluate strings while it starts. After the
+    // first pause it is judged like the page's own code.
+    await new Promise((done) => setTimeout(done))
+    const script = document.createElement('script')
+    script.textContent = 'globalThis.inlineRan = true'
+    document.head.append(script)
+    script.remove()
+    const button = document.createElement('button')
+    button.setAttribute('onclick', 'globalThis.handlerRan = true')
+    button.click()
+    let evaluated = false
+    for (const evaluate of [() => (0, eval)('true') as boolean, () => new Function('return true')() as boolean]) {
+      try {
+        evaluated ||= evaluate()
+      } catch {
+        // refused
+      }
+    }
+    await fetch('https://example.invalid/').catch(() => {})
+    await new Promise((done) => {
+      const image = new Image()
+      image.onload = image.onerror = done
+      image.src = 'https://example.invalid/pixel.png'
+    })
+    await new Promise((done) => setTimeout(done, 100)) // the reports arrive after the attempts
+    const ran = globalThis as unknown as { inlineRan?: boolean; handlerRan?: boolean }
+    return { ran: [ran.inlineRan === true, ran.handlerRan === true, evaluated], refused: [...new Set(refused)].sort() }
+  })
+  expect(tried.ran).toEqual([false, false, false])
+  expect(tried.refused).toEqual(['connect-src', 'img-src', 'script-src', 'script-src-attr', 'script-src-elem'])
+  expect(refusedByPolicy.length).toBeGreaterThan(0) // and the console, watched above, does report what is refused
 })
 
 test('adds a folder only when the user chose it', async () => {
