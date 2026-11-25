@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { accessSync, chmodSync, closeSync, constants, existsSync, linkSync, lstatSync, openSync, readdirSync, readFileSync, readSync, renameSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ActivityLog, LIMITS } from '../src/core/activity'
 import { tempDir } from './helpers'
 
@@ -179,6 +179,58 @@ describe('activity log', () => {
       expect(new ActivityLog(pipe).entries.map((e) => e.message)).toEqual(['pushed'])
     } finally {
       closeSync(listener)
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('carries over a log restored from another account', () => {
+    // Tests can't give a file to another account, so this run stands in for that account instead.
+    const path = join(tempDir(), 'a.jsonl')
+    const history = ['one', 'two', 'three'].map((message, ts) => JSON.stringify({ ts, message }) + '\n').join('')
+    writeFileSync(path, history)
+    chmodSync(path, 0o644)
+    const before = statSync(path).ino
+    const owner = vi.spyOn(process, 'getuid').mockReturnValue(process.getuid!() + 1)
+    let log: ActivityLog
+    try {
+      log = new ActivityLog(path)
+    } finally {
+      owner.mockRestore()
+    }
+    expect(log.entries.map((e) => e.message)).toEqual(['one', 'two', 'three'])
+    log.add('x')
+    expect(readFileSync(path, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line).message)).toEqual(['one', 'two', 'three', 'x'])
+    const now = statSync(path)
+    expect([now.mode & 0o777, now.uid, now.ino === before]).toEqual([0o600, process.getuid!(), false])
+  })
+
+  it.skipIf(process.platform === 'win32')('leaves a log of another account as it was in a folder that takes no new file', (ctx) => {
+    const folder = tempDir()
+    const path = join(folder, 'a.jsonl')
+    const history = '{"ts": 1, "message": "from the old account"}\n'
+    writeFileSync(path, history)
+    chmodSync(path, 0o644)
+    chmodSync(folder, 0o500)
+    const owner = vi.spyOn(process, 'getuid').mockReturnValue(process.getuid!() + 1)
+    try {
+      let open = true
+      try {
+        accessSync(folder, constants.W_OK)
+      } catch {
+        open = false
+      }
+      if (open) ctx.skip() // an administrator writes anywhere: no folder is closed to this run
+      const log = new ActivityLog(path)
+      expect(log.entries.map((e) => e.message)).toEqual(['from the old account'])
+      log.add('pushed', '/r/private-project')
+      expect(log.entries.map((e) => e.message)).toEqual(['from the old account', 'pushed'])
+      log.clear()
+      chmodSync(folder, 0o700) // the folder takes new files again: still nothing is written over it
+      log.add('pushed again', '/r/private-project')
+      log.clear()
+      expect([readFileSync(path, 'utf8'), statSync(path).mode & 0o777, readdirSync(folder)]).toEqual([history, 0o644, ['a.jsonl']])
+    } finally {
+      owner.mockRestore()
+      chmodSync(folder, 0o755) // so it can be cleared away
     }
   })
 
