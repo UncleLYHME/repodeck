@@ -23,6 +23,10 @@ import { anything, checked, flag, hash, list, oneOf, optional, record, setting, 
 export interface Host {
   trash(path: string): Promise<void>
   relaunch(): Promise<void>
+  /** True when the user chose every one of these folders: in the dialog, on the command line, or by dropping them. */
+  chosen(paths: string[]): Promise<boolean>
+  /** Asks the user, in a dialog of main's own, whether every repository in `folder` may join the deck. */
+  confirmWatch(folder: string): Promise<boolean>
 }
 
 function onPath(cmd: string): boolean {
@@ -58,10 +62,20 @@ export function handlers(deck: Deck, github: GithubWatch, updates: CheckoutUpdat
     }),
 
     // -- deck ------------------------------------------------------------------------------
-    addFolders: checked({ paths: list(text) }, ({ paths }) => deck.addFolders(paths)),
+    // Only folders the user chose (main knows which): the page can't put git to work in a folder by asking.
+    addFolders: checked({ paths: list(text) }, async ({ paths }) => {
+      if (!(await host.chosen(paths))) throw new Error('Only a folder you chose can be added.')
+      return deck.addFolders(paths)
+    }),
     removeGroup: checked({ folder: text }, ({ folder }) => deck.removeGroup(folder)),
+    // Showing a folder's new projects automatically adds every repository in it, now and later. Like
+    // adding a folder, that takes the user's word to main: the page asking for it is not enough.
     setGroup: checked({ folder: text, expanded: optional(flag), watching: optional(flag), autoPull: optional(flag) },
-      ({ folder, ...change }) => deck.setGroup(folder, change)),
+      async ({ folder, ...change }) => {
+        const group = deck.state().groups.find((g) => g.folder === folder)
+        if (change.watching && group && !group.watching && !(await host.confirmWatch(folder))) return
+        deck.setGroup(folder, change)
+      }),
     toggleAll: () => deck.toggleAll(),
     removeRepo: checked({ path: text }, ({ path }) => deck.removeRepo(path)),
     togglePin: checked({ path: text }, ({ path }) => deck.togglePin(path)),

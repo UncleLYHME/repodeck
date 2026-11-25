@@ -3,14 +3,15 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { basename, isAbsolute, join } from 'node:path'
 import {
   app, BrowserWindow, dialog, ipcMain, MessageChannelMain, Notification, shell, utilityProcess,
-  type IpcMainInvokeEvent, type UtilityProcess,
+  type IpcMainEvent, type IpcMainInvokeEvent, type UtilityProcess,
 } from 'electron'
 import type { UpdateAction } from '../shared/types'
 import { Endpoint } from '../shared/rpc'
 import { loadBounds, saveBounds } from './bounds'
+import { Chosen } from './chosen'
 import { systemHour12 } from './clock'
 import { configDir, dirsEnv } from './dirs'
 import { loginItem, loginPath, openInCode, setMenu } from './platform'
@@ -46,6 +47,9 @@ const updater = new Updater(
 
 const foldersIn = (argv: string[]) => argv.filter((a) => isAbsolute(a) && isDir(a) && a !== APP_DIR)
 
+const chosen = new Chosen() // what the user asked to have added: the core adds nothing else
+let launchFolders = foldersIn(process.argv) // handed to the page once
+
 function isDir(p: string): boolean {
   try {
     return statSync(p).isDirectory()
@@ -70,6 +74,21 @@ function startCore(): void {
   coreRpc = new Endpoint({ send: (m) => proc.postMessage(m), listen: (fn) => { deliver = fn } })
   coreRpc.handle({
     trash: async ({ path }: { path: string }) => shell.trashItem(path),
+    chosen: ({ paths }: { paths: unknown }) => chosen.take(paths),
+    // The user's word that every repository in a folder may join the deck: asked in a dialog of
+    // main's own, which the page can bring up but not answer. Cancel is the default.
+    confirmWatch: async ({ folder }: { folder: unknown }) => {
+      if (!win || typeof folder !== 'string') return false
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'question',
+        buttons: ['Show', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        message: `Show new projects in “${basename(folder)}” automatically?`,
+        detail: `Every repository in ${folder} joins the deck, now and whenever a new one appears there.`,
+      })
+      return response === 0
+    },
     relaunch: async () => relaunch(),
     loginItem: async ({ on }: { on?: boolean }) => {
       if (on !== undefined) loginItem.set(on)
@@ -189,7 +208,7 @@ function createWindow(): void {
 
 // -- renderer -> main ------------------------------------------------------------------------
 
-function trusted(e: IpcMainInvokeEvent): boolean {
+function trusted(e: IpcMainInvokeEvent | IpcMainEvent): boolean {
   const url = e.senderFrame?.url ?? ''
   return DEV_URL ? url.startsWith(DEV_URL) : url.startsWith('file://')
 }
@@ -231,9 +250,19 @@ function hostHandlers(): void {
       title: 'Add repository or folder of repositories',
       properties: ['openDirectory', 'multiSelections'],
     })
-    return result.canceled ? [] : result.filePaths
+    return result.canceled ? [] : chosen.note(result.filePaths)
   })
-  handle('host:initialFolders', () => foldersIn(process.argv))
+  handle('host:initialFolders', () => {
+    const folders = chosen.note(launchFolders)
+    launchFolders = []
+    return folders
+  })
+  // From the preload, which saw the user drop these on the window; it waits for the answer, so they
+  // count as chosen before the page can ask for them to be added.
+  ipcMain.on('host:dropped', (e, paths: unknown) => {
+    if (trusted(e) && Array.isArray(paths)) chosen.note(paths.filter((path): path is string => typeof path === 'string'))
+    e.returnValue = null
+  })
 }
 
 // -- lifecycle --------------------------------------------------------------------------------
@@ -253,7 +282,7 @@ if (!app.requestSingleInstanceLock({ session: sessionEnv() })) {
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
-    const folders = foldersIn(argv)
+    const folders = chosen.note(foldersIn(argv))
     if (folders.length) win.webContents.send('main-event', { name: 'openFolders', data: folders })
   })
 

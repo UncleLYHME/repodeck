@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { type Fixture, git, launch, makeFixture } from './fixture'
@@ -173,6 +173,86 @@ test('with reduced motion the refresh icon stays still', async () => {
   await expect(button).toHaveAttribute('aria-busy', 'false', { timeout: 10_000 })
   await expect(button.locator('svg')).not.toHaveClass(/spin-soft/)
   await win.emulateMedia({ reducedMotion: 'no-preference' })
+})
+
+test('adds a folder only when the user chose it', async () => {
+  // Repositories outside the folder the deck watches: gamma with delta next to it, epsilon on its own.
+  const [gamma, , epsilon] = ['elsewhere/gamma', 'elsewhere/delta', 'dropped/epsilon'].map((at) => {
+    const repo = join(f.root, at)
+    mkdirSync(repo, { recursive: true })
+    git(repo, 'init', '-q')
+    writeFileSync(join(repo, 'README.md'), `# ${at}\n`)
+    git(repo, 'add', '-A')
+    git(repo, 'commit', '-qm', 'first commit')
+    return repo
+  })
+  // What a page gone wrong could do: call the core by itself.
+  const ask = (method: string, args: unknown): Promise<string> =>
+    win.evaluate(([name, given]) => {
+      const bridge = (globalThis as unknown as { repodeck: { call: (method: string, args: unknown) => Promise<unknown> } }).repodeck
+      return bridge.call(name, given).then(String, (e: Error) => `refused: ${e.message}`)
+    }, [method, args] as const)
+  const refused = 'refused: Only a folder you chose can be added.'
+  await win.getByRole('button', { name: 'Projects', exact: true }).click()
+
+  // Main never saw the user choose the folder: not added.
+  expect(await ask('addFolders', { paths: [gamma] })).toBe(refused)
+  await expect(panel('gamma')).toHaveCount(0)
+
+  // Chosen in the Add Folder dialog (answered here in the user's place): added.
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+  }, gamma)
+  await win.keyboard.press('Control+O')
+  await expect(panel('gamma')).toBeVisible()
+
+  // The repository next to it joins only when the user agrees, in main's own dialog, to have the
+  // folder's projects shown automatically.
+  const answer = (button: number) => app.evaluate(({ dialog }, response) => {
+    dialog.showMessageBox = async () => ({ response, checkboxChecked: false })
+  }, button)
+  await answer(1) // Cancel
+  await ask('setGroup', { folder: join(f.root, 'elsewhere'), watching: true })
+  await expect(panel('gamma')).toBeVisible()
+  await expect(panel('delta')).toHaveCount(0)
+  await answer(0) // Show
+  await ask('setGroup', { folder: join(f.root, 'elsewhere'), watching: true })
+  await expect(panel('delta')).toBeVisible()
+
+  // Dropped on the window by the user (a real drop, made through the browser's own input): added,
+  // by the page's own drop handler.
+  const cdp = await win.context().newCDPSession(win)
+  const data = { items: [], files: [epsilon], dragOperationsMask: 1 }
+  for (const type of ['dragEnter', 'dragOver', 'drop'] as const) await cdp.send('Input.dispatchDragEvent', { type, x: 500, y: 500, data })
+  await expect(panel('epsilon')).toBeVisible()
+
+  // A choice is good for one add: taken out of the deck again, the page can't put it back by itself.
+  await ask('removeRepo', { path: epsilon })
+  await expect(panel('epsilon')).toHaveCount(0)
+  expect(await ask('addFolders', { paths: [epsilon] })).toBe(refused)
+
+  // Nor with a file it was once given: looking up its path chooses nothing, and a drop the page
+  // makes itself is not the user's. (That drop doesn't bubble, so only the preload sees it: the
+  // page's own drop handler can't ask for the folder first.)
+  const input = await win.evaluateHandle(() => {
+    const element = document.createElement('input')
+    element.type = 'file'
+    document.body.append(element)
+    return element
+  })
+  await input.setInputFiles(join(epsilon, 'README.md'))
+  const held = await input.evaluate((element) => {
+    const bridge = (globalThis as unknown as { repodeck: { host: { pathForFile: (file: File) => string } } }).repodeck
+    const file = element.files![0]
+    const transfer = new DataTransfer()
+    transfer.items.add(file)
+    element.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: false, cancelable: true }))
+    element.remove()
+    return bridge.host.pathForFile(file)
+  })
+  expect(held).toBe(join(epsilon, 'README.md'))
+  expect(await ask('addFolders', { paths: [held] })).toBe(refused)
+  await expect(panel('epsilon')).toHaveCount(0)
 })
 
 test('preferences save to repos.json and survive a restart', async () => {

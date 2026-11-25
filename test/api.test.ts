@@ -1,7 +1,7 @@
 // What the page can ask of the core, called the way the page calls it: with whatever it likes.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { handlers, type Host } from '../src/core/api'
 import { Deck } from '../src/core/deck'
@@ -15,7 +15,7 @@ const saved = { config: process.env.REPODECK_CONFIG_DIR, xdg: process.env.XDG_CO
 let config: string
 let repo: string
 let deck: Deck
-let host: { trash: ReturnType<typeof vi.fn>; relaunch: ReturnType<typeof vi.fn> }
+let host: Record<'trash' | 'relaunch' | 'chosen' | 'confirmWatch', ReturnType<typeof vi.fn>>
 
 const github = { result: null, refresh: async () => ({ prs: { review: [], mine: [] }, ci: [], error: null }) } as unknown as GithubWatch
 const api = (updates: CheckoutUpdates | null = null) => handlers(deck, github, updates, host as unknown as Host, '0.0.0')
@@ -35,7 +35,7 @@ beforeEach(async () => {
   deck = new Deck({ emit: () => {}, announce: () => {}, toast: () => {} }, root)
   await deck.addFolders([repo])
   await deck.refreshAll()
-  host = { trash: vi.fn(async () => {}), relaunch: vi.fn(async () => {}) }
+  host = { trash: vi.fn(async () => {}), relaunch: vi.fn(async () => {}), chosen: vi.fn(async () => true), confirmWatch: vi.fn(async () => true) }
 })
 
 afterEach(() => {
@@ -55,6 +55,50 @@ describe('core api', () => {
     expect(() => a.commit({ repo: other, message: 'm', paths: ['a.txt'] })).toThrow('Not in the deck')
     expect(() => a.showCommit({ repo: other, sha: 'abcd1234' })).toThrow('Not in the deck')
     expect((await a.branches({ repo })).current).toBe('main')
+  })
+
+  it('adds a folder only when the user chose it', async () => {
+    const other = join(tempDir(), 'elsewhere')
+    mkdirSync(other)
+    await run(other, ['init', '-q', '-b', 'main'])
+    const a = api()
+    host.chosen.mockResolvedValue(false) // the page asking by itself: main never saw the user pick it
+    await expect(a.addFolders({ paths: [other] })).rejects.toThrow('Only a folder you chose can be added.')
+    expect(deck.allPaths()).toEqual([repo])
+    expect(deck.state().groups.map((g) => g.folder)).not.toContain(dirname(other))
+
+    host.chosen.mockResolvedValue(true)
+    await a.addFolders({ paths: [other] })
+    expect(host.chosen).toHaveBeenLastCalledWith([other])
+    expect(deck.allPaths()).toEqual([repo, other])
+  })
+
+  it("shows a folder's other projects only once the user said so", async () => {
+    const folder = dirname(repo) // in the deck because one repository in it was chosen
+    const sibling = join(folder, 'never-chosen')
+    mkdirSync(sibling)
+    await run(sibling, ['init', '-q', '-b', 'main'])
+    const a = api()
+    const watching = () => deck.state().groups.find((g) => g.folder === folder)!.watching
+    expect(watching()).toBe(false)
+
+    host.confirmWatch.mockResolvedValue(false) // the page asking by itself; the user said no, or was never asked
+    await a.setGroup({ folder, watching: true })
+    expect([watching(), deck.allPaths()]).toEqual([false, [repo]])
+    expect(host.confirmWatch).toHaveBeenLastCalledWith(folder)
+
+    host.confirmWatch.mockResolvedValue(true)
+    await a.setGroup({ folder, watching: true })
+    expect([watching(), deck.allPaths()]).toEqual([true, [repo, sibling]])
+
+    // nothing else about a group needs asking, and neither does a folder that is shown already
+    host.confirmWatch.mockClear()
+    await a.setGroup({ folder, watching: true })
+    await a.setGroup({ folder, autoPull: false })
+    await a.setGroup({ folder, watching: false })
+    await a.setGroup({ folder: '/no/such/group', watching: true })
+    expect(host.confirmWatch).not.toHaveBeenCalled()
+    expect(watching()).toBe(false)
   })
 
   it('refuses arguments of the wrong type before anything runs', () => {
@@ -111,11 +155,11 @@ describe('core api', () => {
     expect(JSON.parse(readFileSync(join(config, 'repos.json'), 'utf8'))).toMatchObject({ fetch_minutes: 15, diff_layout: 'unified' })
   })
 
-  it('changes only the parts of a group it is given', () => {
+  it('changes only the parts of a group it is given', async () => {
     const a = api()
     const [before] = deck.state().groups
-    a.setGroup({ folder: before.folder, autoPull: true })
-    a.setGroup({ folder: before.folder, expanded: !before.expanded }) // collapsing must not touch the rest
+    await a.setGroup({ folder: before.folder, autoPull: true })
+    await a.setGroup({ folder: before.folder, expanded: !before.expanded }) // collapsing must not touch the rest
     const [after] = deck.state().groups
     expect(after).toMatchObject({ expanded: !before.expanded, autoPull: true, watching: before.watching })
   })

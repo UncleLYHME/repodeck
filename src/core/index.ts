@@ -61,6 +61,8 @@ activity().subscribe((entry) => broadcast('activity', entry))
 const api = handlers(deck, github, updates, {
   trash: (path) => main.call('trash', { path }, 30_000),
   relaunch: () => main.call('relaunch', null, 10_000),
+  chosen: (paths) => main.call<boolean>('chosen', { paths }, 5000),
+  confirmWatch: (folder) => main.call<boolean>('confirmWatch', { folder }), // waits for the user: no time limit
 }, version)
 
 function attach(port: MessagePortMain): void {
