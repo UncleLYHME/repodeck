@@ -37,6 +37,15 @@ ipcRenderer.on('core-port', (event) => {
 
 ipcRenderer.on('main-event', (_e, { name, data }: { name: string; data: unknown }) => dispatch(name, data))
 
+// What the user drops on the window is theirs to add to the deck. Main hears of it from here, where
+// the drop itself is seen: only a drop the user made (`isTrusted`, never one the page dispatched),
+// and before the page's own handler runs, so main knows the folder by the time the page asks for it.
+window.addEventListener('drop', (event) => {
+  if (!event.isTrusted) return
+  const paths = [...(event.dataTransfer?.files ?? [])].map((file) => webUtils.getPathForFile(file)).filter(Boolean)
+  if (paths.length) ipcRenderer.sendSync('host:dropped', paths)
+}, true)
+
 const api = {
   call: (method: string, args?: unknown) => core.call(method, args),
   on: (name: string, fn: (data: unknown) => void) => {

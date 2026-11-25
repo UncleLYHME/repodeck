@@ -230,7 +230,7 @@ export class Deck {
 
   togglePin(path: string): void {
     if (this.pinned.has(path)) this.pinned.delete(path)
-    else this.pinned.add(path)
+    else this.pinned.add(this.repo(path).path) // only repositories in the deck can be pinned
     this.save()
   }
 
@@ -240,6 +240,7 @@ export class Deck {
     if (key === 'autostart') {
       await setAutostart(Boolean(value), this.appDir)
     } else {
+      if (!Object.hasOwn(this.settings, key)) throw new Error(`Unknown setting: ${String(key)}`)
       ;(this.settings as Record<string, unknown>)[key] = value
       if (key === 'autoPull' && value) for (const r of this.repos.values()) r.maybeAutoPull() // catch up on fetched commits
     }

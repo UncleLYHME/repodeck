@@ -41,6 +41,19 @@ describe('rpc endpoint', () => {
     await expect(a.call('missing')).rejects.toThrow('Unknown method missing')
   })
 
+  it('answers only registered handlers, never what every object inherits', async () => {
+    const { a, b } = pair()
+    b.handle({ ping: () => 'pong' })
+    for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf', '__proto__', '__defineGetter__']) {
+      await expect(a.call(name, {})).rejects.toThrow(`Unknown method ${name}`)
+    }
+    await expect(a.call('ping')).resolves.toBe('pong')
+    const { out, deliver } = lone()
+    deliver({ t: 'req', id: 7, m: 42, a: null })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(out).toEqual([{ t: 'res', id: 7, ok: false, e: 'Unknown method 42' }])
+  })
+
   it('keeps concurrent calls apart by id, whatever order they finish in', async () => {
     const { a, b } = pair()
     b.handle({ slow: () => new Promise((r) => setTimeout(() => r('slow'), 20)), fast: () => 'fast' })

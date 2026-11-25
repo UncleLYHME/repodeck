@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { letter, isStaged, hasCommits } from '../src/shared/changes'
 import { exec, GitError, run } from '../src/core/git/run'
-import { childRepos, commitFileDiff, commitFiles, findRepos, log, parseRefs, status } from '../src/core/git/status'
+import { childRepos, commitFileDiff, commitFiles, findRepos, log, parseRefs, show, status } from '../src/core/git/status'
 import { commit } from '../src/core/git/commit'
 import { backgroundFetch } from '../src/core/git/sync'
 import { byPath, commitAll, committedFiles, initRepo, tempDir, write } from './helpers'
@@ -131,6 +131,25 @@ describe('git', () => {
     const merge = (await log(repo, await status(repo)))[0]
     expect(merge.parents).toHaveLength(2)
     expect((await commitFiles(repo, merge.fullSha)).map((f) => [f.path, f.letter])).toEqual([['side.txt', 'A']])
+  })
+
+  it('reads a commit only by its hash, never as a git option', async () => {
+    const repo = await initRepo()
+    write(repo, 'a.txt', 'one\n')
+    await commitAll(repo, 'base')
+    const [row] = await log(repo, await status(repo))
+    expect(await show(repo, row.fullSha)).toContain('base')
+    expect((await commitFiles(repo, row.sha)).map((f) => f.path)).toEqual(['a.txt']) // abbreviated hashes work too
+
+    // `git show --output=<file>` writes its output there: a hash from the page must never get that far.
+    const target = join(tempDir(), 'written-by-git')
+    const file = { path: 'a.txt', letter: 'A', orig: null }
+    for (const sha of [`--output=${target}`, '-p', '--all', 'HEAD', 'main', '', `${row.fullSha} --output=${target}`]) {
+      await expect(show(repo, sha)).rejects.toBeInstanceOf(GitError)
+      await expect(commitFiles(repo, sha)).rejects.toBeInstanceOf(GitError)
+      await expect(commitFileDiff(repo, sha, file)).rejects.toBeInstanceOf(GitError)
+    }
+    expect(existsSync(target)).toBe(false)
   })
 
   it('parses refs including remotes', () => {

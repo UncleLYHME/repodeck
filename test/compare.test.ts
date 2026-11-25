@@ -1,12 +1,12 @@
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Chunk } from '@codemirror/merge'
 import { Text } from '@codemirror/state'
-import { run } from '../src/core/git/run'
+import { GitError, run } from '../src/core/git/run'
 import { commitFiles, log, status } from '../src/core/git/status'
 import { Unreadable, commitVersions, workingVersions } from '../src/core/compare'
-import { initRepo } from './helpers'
+import { initRepo, tempDir } from './helpers'
 
 // The renderer's side-by-side view aligns files with @codemirror/merge. These pin down how it lines
 // versions up (the Python version used difflib, which kept edits one line apart separate).
@@ -68,5 +68,51 @@ describe('versions', () => {
     const root = rows[rows.length - 1].fullSha
     const binFile = (await commitFiles(repo, root)).find((x) => x.path === 'bin.dat')!
     await expect(commitVersions(repo, root, binFile)).rejects.toBeInstanceOf(Unreadable)
+  })
+
+  it.skipIf(process.platform === 'win32')('compares a symbolic link as a link and never reads through one', async () => {
+    const repo = await initRepo()
+    const outside = tempDir()
+    writeFileSync(join(outside, 'secret.txt'), 'TOP SECRET\n')
+    writeFileSync(join(outside, 'guide.txt'), 'not the guide\n')
+    for (const dir of ['docs', 'lib']) mkdirSync(join(repo, dir))
+    writeFileSync(join(repo, 'docs/guide.txt'), 'guide\n')
+    writeFileSync(join(repo, 'lib/util.txt'), 'util\n')
+    await run(repo, ['add', '-A'])
+    await run(repo, ['commit', '-qm', 'one'])
+
+    // A new link to a file elsewhere: git stores the link itself, so that is what gets compared.
+    symlinkSync(join(outside, 'secret.txt'), join(repo, 'link.txt'))
+    // Tracked folders swapped for links, out of the repository and within it: git calls their files deleted.
+    renameSync(join(repo, 'docs'), join(repo, 'docs.moved'))
+    symlinkSync(outside, join(repo, 'docs'), 'dir')
+    renameSync(join(repo, 'lib'), join(repo, 'lib.moved'))
+    symlinkSync('lib.moved', join(repo, 'lib'), 'dir')
+    const st = await status(repo)
+    const ch = Object.fromEntries(st.changes.map((c) => [c.path, c]))
+    expect(await workingVersions(repo, st, ch['link.txt'])).toEqual(['', join(outside, 'secret.txt')])
+    expect(await workingVersions(repo, st, ch['lib'])).toEqual(['', 'lib.moved'])
+    expect([ch['docs/guide.txt'].y, ch['lib/util.txt'].y]).toEqual(['D', 'D'])
+    expect(await workingVersions(repo, st, ch['docs/guide.txt'])).toEqual(['guide\n', ''])
+    expect(await workingVersions(repo, st, ch['lib/util.txt'])).toEqual(['util\n', ''])
+    // Real files, also in folders, still compare.
+    expect(await workingVersions(repo, st, ch['lib.moved/util.txt'])).toEqual(['', 'util\n'])
+    // A path that climbs out of the repository is never read, whatever git reported.
+    const climbing = { ...ch['link.txt'], path: `../${basename(outside)}/secret.txt` }
+    expect(await workingVersions(repo, st, climbing)).toEqual(['', ''])
+  })
+
+  it('refuses a commit hash that git would read as an option', async () => {
+    const repo = await initRepo()
+    writeFileSync(join(repo, 'a.py'), 'print(1)\n')
+    await run(repo, ['add', '-A'])
+    await run(repo, ['commit', '-qm', 'one'])
+    const target = join(tempDir(), 'written-by-git')
+    const file = { path: 'a.py', letter: 'M', orig: null }
+    await expect(commitVersions(repo, `--output=${target}`, file)).rejects.toBeInstanceOf(GitError)
+    await expect(commitVersions(repo, 'HEAD', file)).rejects.toBeInstanceOf(GitError)
+    expect(existsSync(target)).toBe(false)
+    expect(existsSync(`${target}:a.py`)).toBe(false)
+    expect(existsSync(`${target}^:a.py`)).toBe(false)
   })
 })

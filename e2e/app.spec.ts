@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
+import { CSP } from '../src/shared/csp'
 import { type Fixture, git, launch, makeFixture } from './fixture'
 
 test.describe.configure({ mode: 'serial' })
@@ -13,9 +15,15 @@ const panel = (name: string): Locator => win.getByRole('article', { name })
 const changeRow = (repo: string, file: string): Locator =>
   panel(repo).getByRole('listitem').filter({ has: win.getByRole('checkbox', { name: `Commit ${file}` }) })
 
+// What the page's content security policy refused, as the browser reports it on the console.
+const refusedByPolicy: string[] = []
+
 test.beforeAll(async () => {
   f = makeFixture()
   ;({ app, win } = await launch(f))
+  win.on('console', (message) => {
+    if (/Content Security Policy/i.test(message.text())) refusedByPolicy.push(message.text())
+  })
 })
 
 test.afterAll(async () => {
@@ -173,6 +181,195 @@ test('with reduced motion the refresh icon stays still', async () => {
   await expect(button).toHaveAttribute('aria-busy', 'false', { timeout: 10_000 })
   await expect(button.locator('svg')).not.toHaveClass(/spin-soft/)
   await win.emulateMedia({ reducedMotion: 'no-preference' })
+})
+
+test('the page runs under a content security policy that its own code never trips', async () => {
+  const policy = () => win.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content'))
+  expect(await policy()).toBe(CSP)
+  // Everything shown so far (the deck, the compare and hunk views, history, analytics, preferences)
+  // loaded its scripts, styles and images within the policy. So does the page itself, loaded anew
+  // here so that it is watched from its first line.
+  await win.reload()
+  await expect(win.getByRole('button', { name: 'Projects', exact: true })).toBeVisible()
+  expect(await policy()).toBe(CSP)
+  expect(refusedByPolicy).toEqual([])
+
+  // What a page gone wrong would reach for is refused: script that isn't one of its own files, and the network.
+  const tried = await win.evaluate(async () => {
+    const refused: string[] = []
+    document.addEventListener('securitypolicyviolation', (e) => refused.push(e.effectiveDirective))
+    // The debugger that runs this for the test lets it evaluate strings while it starts. After the
+    // first pause it is judged like the page's own code.
+    await new Promise((done) => setTimeout(done))
+    const script = document.createElement('script')
+    script.textContent = 'globalThis.inlineRan = true'
+    document.head.append(script)
+    script.remove()
+    const button = document.createElement('button')
+    button.setAttribute('onclick', 'globalThis.handlerRan = true')
+    button.click()
+    let evaluated = false
+    for (const evaluate of [() => (0, eval)('true') as boolean, () => new Function('return true')() as boolean]) {
+      try {
+        evaluated ||= evaluate()
+      } catch {
+        // refused
+      }
+    }
+    await fetch('https://example.invalid/').catch(() => {})
+    await new Promise((done) => {
+      const image = new Image()
+      image.onload = image.onerror = done
+      image.src = 'https://example.invalid/pixel.png'
+    })
+    await new Promise((done) => setTimeout(done, 100)) // the reports arrive after the attempts
+    const ran = globalThis as unknown as { inlineRan?: boolean; handlerRan?: boolean }
+    return { ran: [ran.inlineRan === true, ran.handlerRan === true, evaluated], refused: [...new Set(refused)].sort() }
+  })
+  expect(tried.ran).toEqual([false, false, false])
+  expect(tried.refused).toEqual(['connect-src', 'img-src', 'script-src', 'script-src-attr', 'script-src-elem'])
+  expect(refusedByPolicy.length).toBeGreaterThan(0) // and the console, watched above, does report what is refused
+})
+
+test('adds a folder only when the user chose it', async () => {
+  // Repositories outside the folder the deck watches: gamma with delta next to it, epsilon on its own.
+  const [gamma, , epsilon] = ['elsewhere/gamma', 'elsewhere/delta', 'dropped/epsilon'].map((at) => {
+    const repo = join(f.root, at)
+    mkdirSync(repo, { recursive: true })
+    git(repo, 'init', '-q')
+    writeFileSync(join(repo, 'README.md'), `# ${at}\n`)
+    git(repo, 'add', '-A')
+    git(repo, 'commit', '-qm', 'first commit')
+    return repo
+  })
+  // What a page gone wrong could do: call the core by itself.
+  const ask = (method: string, args: unknown): Promise<string> =>
+    win.evaluate(([name, given]) => {
+      const bridge = (globalThis as unknown as { repodeck: { call: (method: string, args: unknown) => Promise<unknown> } }).repodeck
+      return bridge.call(name, given).then(String, (e: Error) => `refused: ${e.message}`)
+    }, [method, args] as const)
+  const refused = 'refused: Only a folder you chose can be added.'
+  await win.getByRole('button', { name: 'Projects', exact: true }).click()
+
+  // Main never saw the user choose the folder: not added.
+  expect(await ask('addFolders', { paths: [gamma] })).toBe(refused)
+  await expect(panel('gamma')).toHaveCount(0)
+
+  // Chosen in the Add Folder dialog (answered here in the user's place): added.
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+  }, gamma)
+  await win.keyboard.press('Control+O')
+  await expect(panel('gamma')).toBeVisible()
+
+  // The repository next to it joins only when the user agrees, in main's own dialog, to have the
+  // folder's projects shown automatically.
+  const answer = (button: number) => app.evaluate(({ dialog }, response) => {
+    dialog.showMessageBox = async () => ({ response, checkboxChecked: false })
+  }, button)
+  await answer(1) // Cancel
+  await ask('setGroup', { folder: join(f.root, 'elsewhere'), watching: true })
+  await expect(panel('gamma')).toBeVisible()
+  await expect(panel('delta')).toHaveCount(0)
+  await answer(0) // Show
+  await ask('setGroup', { folder: join(f.root, 'elsewhere'), watching: true })
+  await expect(panel('delta')).toBeVisible()
+
+  // Dropped on the window by the user (a real drop, made through the browser's own input): added,
+  // by the page's own drop handler.
+  const cdp = await win.context().newCDPSession(win)
+  const data = { items: [], files: [epsilon], dragOperationsMask: 1 }
+  for (const type of ['dragEnter', 'dragOver', 'drop'] as const) await cdp.send('Input.dispatchDragEvent', { type, x: 500, y: 500, data })
+  await expect(panel('epsilon')).toBeVisible()
+
+  // A choice is good for one add: taken out of the deck again, the page can't put it back by itself.
+  await ask('removeRepo', { path: epsilon })
+  await expect(panel('epsilon')).toHaveCount(0)
+  expect(await ask('addFolders', { paths: [epsilon] })).toBe(refused)
+
+  // Nor with a file it was once given: looking up its path chooses nothing, and a drop the page
+  // makes itself is not the user's. (That drop doesn't bubble, so only the preload sees it: the
+  // page's own drop handler can't ask for the folder first.)
+  const input = await win.evaluateHandle(() => {
+    const element = document.createElement('input')
+    element.type = 'file'
+    document.body.append(element)
+    return element
+  })
+  await input.setInputFiles(join(epsilon, 'README.md'))
+  const held = await input.evaluate((element) => {
+    const bridge = (globalThis as unknown as { repodeck: { host: { pathForFile: (file: File) => string } } }).repodeck
+    const file = element.files![0]
+    const transfer = new DataTransfer()
+    transfer.items.add(file)
+    element.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: false, cancelable: true }))
+    element.remove()
+    return bridge.host.pathForFile(file)
+  })
+  expect(held).toBe(join(epsilon, 'README.md'))
+  expect(await ask('addFolders', { paths: [held] })).toBe(refused)
+  await expect(panel('epsilon')).toHaveCount(0)
+})
+
+test('main shows only deck folders and opens only web links for the page', async () => {
+  // Called the way a page could call them; nothing here opens a window (each call is refused).
+  const host = (name: string, ...args: unknown[]): Promise<string> =>
+    win.evaluate(([method, given]) => {
+      const bridge = (globalThis as unknown as { repodeck: { host: Record<string, (...a: unknown[]) => Promise<unknown>> } }).repodeck
+      return bridge.host[method](...given).then(() => 'done', (e: Error) => e.message)
+    }, [name, args] as const)
+  expect(await host('openPath', f.root)).toContain('Not in the deck') // a folder, but not one of the deck's
+  expect(await host('openPath', join(f.alpha, 'README.md'))).toContain('Not in the deck') // a file, even inside one
+  expect(await host('openPath', '/bin/sh')).toContain('Not in the deck')
+  expect(await host('openPath', 'alpha')).toContain('Not a folder')
+  expect(await host('openInEditor', f.root)).toContain('Not in the deck')
+  expect(await host('openExternal', 'file:///etc/passwd')).toContain('Only web links can be opened')
+  expect(await host('update', 'reboot')).toContain('Unknown update action')
+
+  // What the page does ask for still works: a repository of the deck and the settings folder open.
+  // The file manager is replaced by a list here, so the test opens no window.
+  const replaced = await app.evaluate(({ shell }) => {
+    const opened: string[] = []
+    const record = async (path: string): Promise<string> => (opened.push(path), '')
+    shell.openPath = record
+    ;(globalThis as unknown as { opened: string[] }).opened = opened
+    return shell.openPath === record
+  })
+  expect(replaced).toBe(true)
+  const settings = join(f.env.XDG_CONFIG_HOME, 'repodeck')
+  expect(await host('openPath', f.alpha)).toBe('done')
+  expect(await host('openPath', settings)).toBe('done')
+  expect(await app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened)).toEqual([f.alpha, settings])
+})
+
+test("the page lives at RepoDeck's own address, which leads to the built page and nothing else", async () => {
+  expect(win.url()).toBe('repodeck://app/index.html')
+
+  // A script somewhere else on the disk (a file in a repository, say) is not the page's to run.
+  const outside = join(f.root, 'outside.js')
+  writeFileSync(outside, 'globalThis.outsideRan = true\n')
+  const tried = await win.evaluate(async (src) => {
+    const script = document.createElement('script')
+    const loaded = await new Promise<boolean>((done) => {
+      script.onload = () => done(true)
+      script.onerror = () => done(false)
+      script.src = src
+      document.head.append(script)
+    })
+    script.remove()
+    return { loaded, ran: (globalThis as unknown as { outsideRan?: boolean }).outsideRan === true }
+  }, pathToFileURL(outside).href)
+  expect(tried).toEqual({ loaded: false, ran: false })
+
+  // Asked the way any page could ask: only files of the built page are served.
+  const status = (url: string, method = 'GET'): Promise<number> =>
+    app.evaluate(({ net }, [to, how]) => net.fetch(to, { method: how }).then((r) => r.status, () => 0), [url, method] as const)
+  expect(await status('repodeck://app/index.html')).toBe(200)
+  expect(await status('repodeck://app/index.html', 'POST')).toBe(404)
+  expect(await status('repodeck://app/..%2Fmain%2Findex.js')).toBe(404) // main's own code, one folder up
+  expect(await status('repodeck://app/..%2F..%2Fpackage.json')).toBe(404)
+  expect(await status('repodeck://app/assets/no-such-file.js')).toBe(404)
+  expect(await status('repodeck://elsewhere/index.html')).toBe(404)
 })
 
 test('preferences save to repos.json and survive a restart', async () => {

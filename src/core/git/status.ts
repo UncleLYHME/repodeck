@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readdirSync, realpathSync } from 'node:fs'
 import { dirname, join, normalize, resolve } from 'node:path'
 import type { Change, CommitFile, LogRow, Operation, RefKind, Status } from '../../shared/types'
 import { hasCommits } from '../../shared/changes'
-import { GitError, SEP, run, splitN } from './run'
+import { GitError, SEP, commitHash, run, splitN } from './run'
 
 export const LOG_LIMIT = 300
 
@@ -134,15 +134,17 @@ export async function log(repo: string, st: Status): Promise<LogRow[]> {
   })
 }
 
-export function show(repo: string, sha: string): Promise<string> {
-  return run(repo, ['show', '--stat', '--patch', '--format=fuller', sha])
+// `sha` comes back from the renderer: it is checked to be a hash and placed after --end-of-options,
+// so it can only ever name a commit.
+export async function show(repo: string, sha: string): Promise<string> {
+  return run(repo, ['show', '--stat', '--patch', '--format=fuller', '--end-of-options', commitHash(sha)])
 }
 
 // Merges list what they brought in relative to the branch they were merged into.
 const COMMIT_DIFF = ['--format=', '-M', '--diff-merges=first-parent']
 
 export async function commitFiles(repo: string, sha: string): Promise<CommitFile[]> {
-  const recs = (await run(repo, ['show', ...COMMIT_DIFF, '--name-status', '-z', sha])).split('\0')
+  const recs = (await run(repo, ['show', ...COMMIT_DIFF, '--name-status', '-z', '--end-of-options', commitHash(sha)])).split('\0')
   const files: CommitFile[] = []
   for (let i = 0; i < recs.length; ) {
     const code = recs[i++]
@@ -158,9 +160,9 @@ export async function commitFiles(repo: string, sha: string): Promise<CommitFile
   return files
 }
 
-export function commitFileDiff(repo: string, sha: string, f: CommitFile): Promise<string> {
+export async function commitFileDiff(repo: string, sha: string, f: CommitFile): Promise<string> {
   const paths = f.orig ? [f.orig, f.path] : [f.path]
-  return run(repo, ['show', ...COMMIT_DIFF, sha, '--', ...paths])
+  return run(repo, ['show', ...COMMIT_DIFF, '--end-of-options', commitHash(sha), '--', ...paths])
 }
 
 export { GitError }
