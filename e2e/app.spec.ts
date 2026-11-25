@@ -255,6 +255,37 @@ test('adds a folder only when the user chose it', async () => {
   await expect(panel('epsilon')).toHaveCount(0)
 })
 
+test('main shows only deck folders and opens only web links for the page', async () => {
+  // Called the way a page could call them; nothing here opens a window (each call is refused).
+  const host = (name: string, ...args: unknown[]): Promise<string> =>
+    win.evaluate(([method, given]) => {
+      const bridge = (globalThis as unknown as { repodeck: { host: Record<string, (...a: unknown[]) => Promise<unknown>> } }).repodeck
+      return bridge.host[method](...given).then(() => 'done', (e: Error) => e.message)
+    }, [name, args] as const)
+  expect(await host('openPath', f.root)).toContain('Not in the deck') // a folder, but not one of the deck's
+  expect(await host('openPath', join(f.alpha, 'README.md'))).toContain('Not in the deck') // a file, even inside one
+  expect(await host('openPath', '/bin/sh')).toContain('Not in the deck')
+  expect(await host('openPath', 'alpha')).toContain('Not a folder')
+  expect(await host('openInEditor', f.root)).toContain('Not in the deck')
+  expect(await host('openExternal', 'file:///etc/passwd')).toContain('Only web links can be opened')
+  expect(await host('update', 'reboot')).toContain('Unknown update action')
+
+  // What the page does ask for still works: a repository of the deck and the settings folder open.
+  // The file manager is replaced by a list here, so the test opens no window.
+  const replaced = await app.evaluate(({ shell }) => {
+    const opened: string[] = []
+    const record = async (path: string): Promise<string> => (opened.push(path), '')
+    shell.openPath = record
+    ;(globalThis as unknown as { opened: string[] }).opened = opened
+    return shell.openPath === record
+  })
+  expect(replaced).toBe(true)
+  const settings = join(f.env.XDG_CONFIG_HOME, 'repodeck')
+  expect(await host('openPath', f.alpha)).toBe('done')
+  expect(await host('openPath', settings)).toBe('done')
+  expect(await app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened)).toEqual([f.alpha, settings])
+})
+
 test('preferences save to repos.json and survive a restart', async () => {
   await win.keyboard.press('Control+,')
   await win.getByRole('switch', { name: 'Animated Banner' }).click()

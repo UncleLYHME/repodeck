@@ -2,10 +2,11 @@
 // (Trash, notifications, dialogs, opening URLs and editors, relaunching).
 
 import { spawn } from 'node:child_process'
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import {
-  app, BrowserWindow, dialog, ipcMain, MessageChannelMain, Notification, shell, utilityProcess,
+  app, BrowserWindow, dialog, ipcMain, MessageChannelMain, Notification, session, shell, utilityProcess,
   type IpcMainEvent, type IpcMainInvokeEvent, type UtilityProcess,
 } from 'electron'
 import type { UpdateAction } from '../shared/types'
@@ -14,12 +15,15 @@ import { loadBounds, saveBounds } from './bounds'
 import { Chosen } from './chosen'
 import { systemHour12 } from './clock'
 import { configDir, dirsEnv } from './dirs'
+import { folderView, isAppPage, webLink } from './guard'
 import { loginItem, loginPath, openInCode, setMenu } from './platform'
 import { adoptSession, otherSession, sessionEnv } from './session'
 import { Updater, type UpdaterSettings } from './updater'
 
 const APP_DIR = app.getAppPath() // the checkout (package.json, bin/, data/), or app.asar when installed
 const DEV_URL = process.env.ELECTRON_RENDERER_URL
+// The one page that gets the core and may ask main for anything.
+const PAGE_URL = DEV_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href
 // A real file for notifications (the notification daemon can't read inside app.asar).
 const ICON = join(APP_DIR.replace(/app\.asar$/, 'app.asar.unpacked'), 'data/repodeck.png')
 
@@ -109,9 +113,9 @@ function startCore(): void {
   })
 }
 
-/** Give the window a fresh MessagePort to the core. */
+/** Give the window a fresh MessagePort to the core: only while it shows RepoDeck's own page. */
 function connect(): void {
-  if (!win || !core) return
+  if (!win || !core || !isAppPage(win.webContents.getURL(), PAGE_URL)) return
   const { port1, port2 } = new MessageChannelMain()
   core.postMessage({ type: 'attach' }, [port1])
   win.webContents.postMessage('core-port', null, [port2])
@@ -138,7 +142,8 @@ function announce(a: Announcement): void {
   if (a.key) notes.get(a.key)?.close()
   const note = new Notification({ title: a.message, body: a.body ?? '', icon: ICON })
   note.on('click', () => {
-    if (a.uri && /^https?:\/\//.test(a.uri)) void shell.openExternal(a.uri)
+    const link = webLink(a.uri)
+    if (link) void shell.openExternal(link)
     else win?.show()
   })
   if (a.key) notes.set(a.key, note)
@@ -196,21 +201,35 @@ function createWindow(): void {
   })
   // Nothing but our own page loads in the window; links open in the browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//.test(url)) void shell.openExternal(url)
+    const link = webLink(url)
+    if (link) void shell.openExternal(link)
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e, url) => {
     if (url !== win?.webContents.getURL()) e.preventDefault()
   })
-  if (DEV_URL) void win.loadURL(DEV_URL)
-  else void win.loadFile(join(__dirname, '../renderer/index.html'))
+  void win.loadURL(PAGE_URL) // the address trusted() goes by, in one spelling
 }
 
 // -- renderer -> main ------------------------------------------------------------------------
 
+/** Only RepoDeck's own page, in the top frame of its window, may ask main for anything. */
 function trusted(e: IpcMainInvokeEvent | IpcMainEvent): boolean {
-  const url = e.senderFrame?.url ?? ''
-  return DEV_URL ? url.startsWith(DEV_URL) : url.startsWith('file://')
+  const frame = e.senderFrame
+  return !!win && e.sender === win.webContents && !!frame && frame.parent === null && isAppPage(frame.url, PAGE_URL)
+}
+
+/**
+ * A folder the page may have shown or opened: a repository in the deck, or (where named) RepoDeck's
+ * settings folder. The path is looked up before the disk is asked anything, so a path the page made
+ * up is never touched (on Windows, a look at a share on another machine would sign in to it).
+ */
+async function deckFolder(path: unknown, settings = false): Promise<string> {
+  if (typeof path !== 'string' || !isAbsolute(path)) throw new Error(`Not a folder: ${String(path)}`)
+  const known = (settings && path === configDir()) || (await coreRpc?.call<boolean>('inDeck', { path }, 5000)) === true
+  if (!known) throw new Error(`Not in the deck: ${path}`)
+  if (!isDir(path)) throw new Error(`Not a folder: ${path}`)
+  return path
 }
 
 function hostHandlers(): void {
@@ -219,17 +238,23 @@ function hostHandlers(): void {
       if (!trusted(e)) throw new Error('Untrusted sender')
       return fn(...(args as never[]))
     })
-  handle('host:openExternal', (url: string) => {
-    if (!/^https?:\/\//.test(url)) throw new Error('Only web links can be opened')
-    return shell.openExternal(url)
+  handle('host:openExternal', (url: unknown) => {
+    const link = webLink(url)
+    if (!link) throw new Error('Only web links can be opened')
+    return shell.openExternal(link)
   })
-  handle('host:openPath', (path: string) => {
-    if (!isAbsolute(path) || !existsSync(path)) throw new Error(`Not found: ${path}`)
-    return shell.openPath(path)
+  // The file manager shows folders only: a file handed to the system to open could be a program.
+  handle('host:openPath', async (path: unknown) => {
+    const given = await deckFolder(path, true)
+    // macOS goes by the folder a link leads to, so that folder is the one judged and shown
+    const folder = process.platform === 'darwin' ? realpathSync(given) : given
+    if (folderView(folder) === 'open') return shell.openPath(folder)
+    shell.showItemInFolder(folder)
+    return ''
   })
-  handle('host:openInEditor', (path: string, file?: string) => {
-    if (!isAbsolute(path) || !isDir(path)) throw new Error(`Not a folder: ${path}`)
-    openInCode(path, file)
+  handle('host:openInEditor', async (path: unknown, file?: unknown) => {
+    if (file !== undefined && typeof file !== 'string') throw new Error('Invalid file path')
+    openInCode(await deckFolder(path), file)
   })
   handle('host:appInfo', async () => ({
     packaged: app.isPackaged, version: app.getVersion(), update: app.isPackaged ? updater.status : null,
@@ -238,6 +263,7 @@ function hostHandlers(): void {
   handle('host:update', async (action: UpdateAction) => {
     if (action === 'check') return updater.check(true)
     if (action === 'download') return updater.download()
+    if (action !== 'restart') throw new Error('Unknown update action')
     if (updater.status.phase === 'ready') {
       quitting = true // the core is stopped here, so the quit that installs isn't held up
       await coreRpc?.call('shutdown', null, 1500).catch(() => {})
@@ -287,6 +313,9 @@ if (!app.requestSingleInstanceLock({ session: sessionEnv() })) {
   })
 
   app.whenReady().then(() => {
+    // The page needs no camera, location, clipboard reading or any other permission: all are refused.
+    session.defaultSession.setPermissionRequestHandler((_contents, _permission, decide) => decide(false))
+    session.defaultSession.setPermissionCheckHandler(() => false)
     setMenu()
     hostHandlers()
     startCore()

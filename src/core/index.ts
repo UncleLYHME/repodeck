@@ -89,6 +89,7 @@ main.handle({
   },
   windowFocused: () => deck.refreshAll(),
   settings: () => deck.settings,
+  inDeck: ({ path }: { path: string }) => deck.allPaths().includes(path), // main opens only these folders for the page
   log: ({ message }: { message: string }) => void activity().add(message, null, 'auto'),
 })
 
