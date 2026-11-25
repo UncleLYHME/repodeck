@@ -7,7 +7,22 @@ import { exec, run } from '../git/run'
 export const DAYS = 14
 export const FAILED = new Set(['failure', 'timed_out', 'startup_failure'])
 export const GITHUB_TTL = 120 // seconds a GitHub answer is reused before asking again
-export const GITHUB_URL = /github\.com[:/](?<slug>[^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/
+// A remote on github.com, the way git reads the address: a URL whose host is github.com, or the
+// short "[user@]github.com:owner/name" form. "github.com" anywhere else (further along another
+// server's address, in a local path, after another host's colon) is not GitHub, and must not put
+// GitHub's pull requests and CI runs for that name next to the repository.
+//
+// Everything before the host is spelt in plain characters. Git, curl and ssh each read an address
+// their own way: one ends the host at "?", "#" or a backslash, and git's own transports turn "%2F"
+// into a "/" first (curl, which reads the web addresses, leaves an escaped name or password whole).
+// An address that could be read two ways is not taken for GitHub's.
+// (ssh.github.com is GitHub's SSH on port 443, for networks that block port 22.)
+const LOGIN = String.raw`[\w.~+-]+`
+const ESCAPED = String.raw`(?:[\w.~+-]|%[0-9a-f]{2})`
+const WEB = String.raw`https?://(?:${ESCAPED}+(?::${ESCAPED}*)?@)?(?:www\.)?github\.com(?::\d+)?/`
+const NATIVE = String.raw`(?:ssh|git|git\+ssh|ssh\+git)://(?:${LOGIN}@)?(?:ssh\.)?github\.com(?::\d+)?/`
+const SHORT = String.raw`(?:${LOGIN}@)?(?:ssh\.)?github\.com:/?`
+export const GITHUB_URL = new RegExp(String.raw`^(?:${WEB}|${NATIVE}|${SHORT})(?<slug>[\w.-]+/[\w.-]+?)(?:\.git)?/?$`, 'i')
 
 export async function githubSlug(repo: string): Promise<string | null> {
   try {

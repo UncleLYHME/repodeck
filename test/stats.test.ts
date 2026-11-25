@@ -72,6 +72,60 @@ describe('parsing', () => {
   it('reads GitHub slugs and formats times', () => {
     expect(GITHUB_URL.exec('git@github.com:me/app.git')?.groups?.slug).toBe('me/app')
     expect(GITHUB_URL.exec('https://github.com/me/app')?.groups?.slug).toBe('me/app')
+    for (const url of [
+      'https://github.com/me/app.git', 'https://github.com/me/app/', 'https://me:token@github.com/me/app.git',
+      'ssh://git@github.com/me/app.git', 'git://github.com/me/app', 'https://www.github.com/me/app', 'git@GitHub.com:me/app.git',
+      'ssh://git@github.com:22/me/app.git', 'https://github.com:443/me/app', 'github.com:me/app.git', 'git@github.com:/me/app.git',
+      'https://x-access-token:ghp_Abc123@github.com/me/app.git', 'https://me:@github.com/me/app',
+      'https://me%40work.example:t0k%2Fen@github.com/me/app', // curl splits the address first and unescapes the login after
+      'ssh://git@ssh.github.com:443/me/app.git', 'ssh://git@ssh.github.com/me/app.git', 'git@ssh.github.com:me/app.git',
+    ]) expect(GITHUB_URL.exec(url)?.groups?.slug, url).toBe('me/app')
+    expect(GITHUB_URL.exec('https://github.com/Me/my.app-2.git')?.groups?.slug).toBe('Me/my.app-2')
+  })
+
+  it('takes only a remote on github.com itself for a GitHub repository', () => {
+    // each of these used to read as "trusted/project": another server, or no server at all
+    for (const url of [
+      'https://evil.example/github.com/trusted/project.git',
+      'https://github.com.evil.example/trusted/project',
+      'https://github.com@evil.example/trusted/project',
+      'https://notgithub.com/trusted/project',
+      'git@evil.example:github.com/trusted/project.git',
+      'evil.example:mirror/github.com/trusted/project',
+      'evil.example:cache@github.com/trusted/project.git', // git's host here is evil.example
+      'evil.example:cache@github.com:trusted/project.git',
+      'github.com/trusted/project.git', // a folder next to the repository
+      './github.com:trusted/project',
+      'https://github.com:evil.example/trusted/project',
+      'https://evil.example?x@github.com/trusted/project', // to git, the host ends at "?", "#" or a backslash
+      'https://evil.example#x@github.com/trusted/project',
+      'https://evil.example\\@github.com/trusted/project',
+      'https://evil.example\\x@github.com/trusted/project',
+      'https://git@evil.example@github.com/trusted/project',
+      'ssh://evil.example?x@github.com:22/trusted/project',
+      'evil.example?x@github.com:trusted/project',
+      'ssh://evil.example%2Fx@github.com/trusted/project', // git's own transports read "%2F" as "/" before they look for the host
+      'ssh://evil.example%2f@github.com:22/trusted/project',
+      'git://evil.example%2Fx@github.com/trusted/project',
+      'https://evil.example%@github.com/trusted/project', // a "%" that escapes nothing
+      'https://evil.example%2@github.com/trusted/project',
+      'ssh://git:pw@github.com/trusted/project',
+      'https://github.com/trusted/pro%6Aect',
+      'https://github.com/trusted/project?x=1',
+      'https://github.com/trusted/project#main',
+      'ssh://git@ssh.github.com.evil.example/trusted/project',
+      'ssh://git@sshxgithub.com/trusted/project',
+      'git@evil.github.com:trusted/project',
+      'https://gist.github.com/trusted/project',
+      'ssh://git@evil.example/srv/github.com/trusted/project.git',
+      '/home/me/mirrors/github.com/trusted/project',
+      'file:///srv/git/github.com/trusted/project.git',
+      'https://github.com/trusted/project/extra',
+      'https://github.com/trusted',
+    ]) expect(GITHUB_URL.exec(url), url).toBeNull()
+  })
+
+  it('formats times', () => {
     expect(isoTs('1970-01-01T00:01:00Z')).toBe(60)
     const now = Date.now() / 1000
     expect([5, 120, 7200, 3 * 86400].map((s) => ago(now - s, now))).toEqual(['now', '2m', '2h', '3d'])
