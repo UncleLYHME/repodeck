@@ -9,17 +9,22 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { ActivityEntry, Level, Who } from '../shared/types'
 import { stateDir } from './paths'
-import { appendPrivate, readPrivate, replacePrivate } from './private'
+import { appendPrivate, readPrivateFile, replacePrivate } from './private'
 
 export const LIMITS = { keep: 500 }
 
 export class ActivityLog {
   entries: ActivityEntry[] = []
   private lines = 0
+  // Another account's log that could not be carried over: left as it is, and this run's log is kept in
+  // memory only, so that nothing written in its place loses it.
+  private theirs = false
   private listeners: ((e: ActivityEntry | null) => void)[] = []
 
   constructor(readonly path: string) {
-    const lines = (readPrivate(path) ?? '').split('\n').filter(Boolean) // nothing on a first run
+    const { text, theirs } = readPrivateFile(path)
+    this.theirs = theirs
+    const lines = (text ?? '').split('\n').filter(Boolean) // nothing on a first run
     this.lines = lines.length
     for (const line of lines.slice(-LIMITS.keep)) {
       try {
@@ -36,7 +41,7 @@ export class ActivityLog {
     const entry: ActivityEntry = { ts: Date.now() / 1000, message, repo, who, level }
     this.entries.push(entry)
     if (this.entries.length > LIMITS.keep) this.entries.splice(0, this.entries.length - LIMITS.keep)
-    try {
+    if (!this.theirs) try {
       mkdirSync(dirname(this.path), { recursive: true })
       // Appended to the log when it is RepoDeck's own (or not there yet); otherwise (grown too long,
       // or something else in its place) written out anew from what is in memory.
@@ -56,7 +61,7 @@ export class ActivityLog {
   clear(): void {
     this.entries = []
     this.lines = 0
-    try {
+    if (!this.theirs) try {
       replacePrivate(this.path, '')
     } catch {
       // nothing to clear

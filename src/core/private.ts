@@ -6,7 +6,9 @@
 // - a file is changed where it stands (a line added; or, in a folder that takes no new file,
 //   rewritten) only when it is known to be such a file, through the handle it was checked on;
 // - a file that stood open to other accounts and can't be replaced is closed to them, and from
-//   then on only read or emptied: whoever had it open keeps it open, and learns nothing new from it.
+//   then on only read or emptied: whoever had it open keeps it open, and learns nothing new from it;
+// - a file of the user's from another account, such as a restored backup, is copied into a new private
+//   file of RepoDeck's own; it is never written to where it stands.
 //
 // "Readable by the user only" is the file's mode, and so as good as the file system's word for it.
 // Windows has no modes: there a file is as open as its folder, and RepoDeck's folders are in the
@@ -33,18 +35,23 @@ const OR_NEW = constants.O_NOFOLLOW ? constants.O_CREAT : 0
 const MODES = process.platform !== 'win32' // no modes or owner ids to go by on Windows
 
 /**
- * What an open handle says about the file at `path`, or null unless it is a file of RepoDeck's own: a
- * plain file under this one name, this user's (where that can be told), and the very file the path
- * names. The last check is what stops a link where O_NOFOLLOW is missing (Windows): there the handle
- * would be the file the link points at.
+ * What an open handle says about the file at `path`, or null unless it is a plain file under this one
+ * name and the very file the path names. The last check is what stops a link where O_NOFOLLOW is
+ * missing (Windows): there the handle would be the file the link points at.
  */
-function ownFile(fd: number, path: string): BigIntStats | null {
+function plainFile(fd: number, path: string): BigIntStats | null {
   const info = fstatSync(fd, { bigint: true })
   const at = lstatSync(path, { bigint: true })
   if (at.isSymbolicLink() || at.dev !== info.dev || at.ino !== info.ino) return null
   if (!info.isFile() || info.nlink !== 1n) return null
-  if (MODES && info.uid !== BigInt(process.getuid?.() ?? -1)) return null
   return info
+}
+/** Another account's file (where that can be told). */
+const theirs = (info: BigIntStats): boolean => MODES && info.uid !== BigInt(process.getuid?.() ?? -1)
+/** As plainFile, and this user's too: a file of RepoDeck's own. */
+function ownFile(fd: number, path: string): BigIntStats | null {
+  const info = plainFile(fd, path)
+  return info && !theirs(info) ? info : null
 }
 const modeOf = (info: BigIntStats): number => Number(info.mode & 0o777n)
 const isPrivate = (info: BigIntStats): boolean => !MODES || modeOf(info) === PRIVATE
@@ -164,21 +171,24 @@ export function removePrivate(path: string): void {
 
 /**
  * The text of the file at `path`, or null when there is none of RepoDeck's own. One that an earlier
- * version left readable by every account is replaced by a private copy on the way: before it is
- * parsed (so a damaged one is covered too), and as a new file (so nobody who had it open reads on).
- * In a folder that takes no new file it is shut where it stands, until a new file can take its place.
+ * version left readable by every account, or one of the user's from another account, is replaced by
+ * a private copy on the way: before it is parsed (so a damaged one is covered too), and as a new file
+ * (so nobody who had it open reads on). In a folder that takes no new file the first is shut where it
+ * stands, until a new file can take its place; the second is left as it is, and `theirs` says so:
+ * nothing may then be written in its place, or it would be lost.
  */
-export function readPrivate(path: string): string | null {
+export function readPrivateFile(path: string): { text: string | null; theirs: boolean } {
   let fd: number | undefined
   try {
     fd = openSync(path, constants.O_RDONLY | AS_ITSELF)
-    const info = ownFile(fd, path)
-    if (!info) return null
+    const info = plainFile(fd, path)
+    if (!info) return { text: null, theirs: false }
     const text = readFileSync(fd, 'utf8')
-    if (!isPrivate(info)) {
+    if (theirs(info) || !isPrivate(info)) {
       try {
         replacePrivate(path, text)
       } catch {
+        if (theirs(info)) return { text, theirs: true }
         try {
           fchmodSync(fd, SHUT)
         } catch {
@@ -186,10 +196,13 @@ export function readPrivate(path: string): string | null {
         }
       }
     }
-    return text
+    return { text, theirs: false }
   } catch {
-    return null
+    return { text: null, theirs: false }
   } finally {
     if (fd !== undefined) closeSync(fd)
   }
 }
+
+/** readPrivateFile's text alone. */
+export const readPrivate = (path: string): string | null => readPrivateFile(path).text
