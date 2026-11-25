@@ -6,7 +6,7 @@ import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
-  app, BrowserWindow, dialog, ipcMain, MessageChannelMain, Notification, session, shell, utilityProcess,
+  app, BrowserWindow, dialog, ipcMain, MessageChannelMain, net, Notification, protocol, session, shell, utilityProcess,
   type IpcMainEvent, type IpcMainInvokeEvent, type UtilityProcess,
 } from 'electron'
 import type { UpdateAction } from '../shared/types'
@@ -15,7 +15,7 @@ import { loadBounds, saveBounds } from './bounds'
 import { Chosen } from './chosen'
 import { systemHour12 } from './clock'
 import { configDir, dirsEnv } from './dirs'
-import { folderView, isAppPage, webLink } from './guard'
+import { APP_PAGE, APP_SCHEME, folderView, isAppPage, pageFile, webLink } from './guard'
 import { loginItem, loginPath, openInCode, setMenu } from './platform'
 import { adoptSession, otherSession, sessionEnv } from './session'
 import { Updater, type UpdaterSettings } from './updater'
@@ -23,7 +23,10 @@ import { Updater, type UpdaterSettings } from './updater'
 const APP_DIR = app.getAppPath() // the checkout (package.json, bin/, data/), or app.asar when installed
 const DEV_URL = process.env.ELECTRON_RENDERER_URL
 // The one page that gets the core and may ask main for anything.
-const PAGE_URL = DEV_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href
+const PAGE_URL = DEV_URL ?? APP_PAGE
+// Its address is one of the app's own (see guard.ts): an origin like a web page's, with what that
+// brings (a content security policy's "self", module scripts, the code cache) and no more.
+protocol.registerSchemesAsPrivileged([{ scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, codeCache: true } }])
 // A real file for notifications (the notification daemon can't read inside app.asar).
 const ICON = join(APP_DIR.replace(/app\.asar$/, 'app.asar.unpacked'), 'data/repodeck.png')
 
@@ -164,6 +167,16 @@ function relaunch(folders: string[] = []): void {
 }
 
 // -- the window -------------------------------------------------------------------------------
+
+/** Serve the built page, and only it, at the page's address. */
+function servePage(): void {
+  const root = join(__dirname, '../renderer')
+  const missing = () => new Response(null, { status: 404 })
+  protocol.handle(APP_SCHEME, (request) => {
+    const file = request.method === 'GET' ? pageFile(request.url, root) : null
+    return file ? net.fetch(pathToFileURL(file).href).catch(missing) : missing()
+  })
+}
 
 function createWindow(): void {
   const bounds = loadBounds()
@@ -319,6 +332,7 @@ if (!app.requestSingleInstanceLock({ session: sessionEnv() })) {
     setMenu()
     hostHandlers()
     startCore()
+    servePage()
     createWindow()
     updater.start()
   })

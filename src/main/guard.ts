@@ -1,7 +1,7 @@
 // What main checks before it acts for the page: which page is asking, and what may be handed to
 // the system to open. Plain functions without Electron, so they are tested directly.
 
-import { posix } from 'node:path'
+import nodePath, { posix, type PlatformPath } from 'node:path'
 
 function parsed(url: unknown): URL | null {
   if (typeof url !== 'string') return null
@@ -13,26 +13,40 @@ function parsed(url: unknown): URL | null {
 }
 
 /**
- * What the path of a file: URL spells, byte for byte (one character each). Chromium and Node escape
- * different characters, so two spellings of one path differ only in which bytes are written as
- * "%XX". A "%" that starts no escape (a folder called "100% done", in a URL put together by hand)
- * stands for itself.
+ * RepoDeck's page has an address of its own. Loaded from a file, every file on the disk would be the
+ * page's neighbour: a script lying in a repository as much "its own" as the app's. At this address
+ * the page reaches the built page's folder and nothing else.
  */
-const spelt = (path: string): string => path.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+export const APP_SCHEME = 'repodeck'
+export const APP_PAGE = `${APP_SCHEME}://app/index.html`
 
 /**
- * True when `url` is the page at `page`, RepoDeck's own, whatever its query or fragment. An installed
- * copy loads one file, so any other file on the disk is a different page; in development the page
- * is whatever the dev server serves from its origin.
+ * True when `url` is at the address RepoDeck's page is served from (`page`): its own scheme and host,
+ * or the dev server's in development. A page loaded from a file is never it.
  */
-export function isAppPage(url: unknown, page: string, platform: NodeJS.Platform = process.platform): boolean {
+export function isAppPage(url: unknown, page: string): boolean {
   const [at, app] = [parsed(url), parsed(page)]
-  if (!at || !app || at.protocol !== app.protocol || at.host !== app.host) return false
-  if (app.protocol !== 'file:') return true
-  const [a, b] = [spelt(at.pathname), spelt(app.pathname)]
-  if (platform !== 'win32') return a === b
-  const plain = (s: string) => s.replace(/[A-Z]/g, (letter) => letter.toLowerCase())
-  return plain(a) === plain(b) // Windows: "c:" and "C:" are one drive
+  return !!at && !!app && app.protocol !== 'file:' && at.protocol === app.protocol && at.host === app.host
+}
+
+/**
+ * The file in `root` (the built page's folder) that a request to the page's address asks for, or
+ * null when it asks for anything else: another host, or a path that leads out of the folder.
+ */
+export function pageFile(url: unknown, root: string, path: PlatformPath = nodePath): string | null {
+  const at = parsed(url)
+  if (!at || at.protocol !== `${APP_SCHEME}:` || at.host !== 'app') return null
+  let name: string
+  try {
+    name = decodeURIComponent(at.pathname)
+  } catch {
+    return null
+  }
+  if (/[\\\0]/.test(name)) return null // no other way to write a separator, no cut-off name
+  const file = path.join(root, name)
+  const within = path.relative(root, file)
+  const outside = within === '..' || within.startsWith(`..${path.sep}`) || path.isAbsolute(within)
+  return within && !outside ? file : null
 }
 
 /** The link in its normal form when it is a web link (http or https), the only kind handed to the system; otherwise null. */

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { type Fixture, git, launch, makeFixture } from './fixture'
 
@@ -284,6 +285,36 @@ test('main shows only deck folders and opens only web links for the page', async
   expect(await host('openPath', f.alpha)).toBe('done')
   expect(await host('openPath', settings)).toBe('done')
   expect(await app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened)).toEqual([f.alpha, settings])
+})
+
+test("the page lives at RepoDeck's own address, which leads to the built page and nothing else", async () => {
+  expect(win.url()).toBe('repodeck://app/index.html')
+
+  // A script somewhere else on the disk (a file in a repository, say) is not the page's to run.
+  const outside = join(f.root, 'outside.js')
+  writeFileSync(outside, 'globalThis.outsideRan = true\n')
+  const tried = await win.evaluate(async (src) => {
+    const script = document.createElement('script')
+    const loaded = await new Promise<boolean>((done) => {
+      script.onload = () => done(true)
+      script.onerror = () => done(false)
+      script.src = src
+      document.head.append(script)
+    })
+    script.remove()
+    return { loaded, ran: (globalThis as unknown as { outsideRan?: boolean }).outsideRan === true }
+  }, pathToFileURL(outside).href)
+  expect(tried).toEqual({ loaded: false, ran: false })
+
+  // Asked the way any page could ask: only files of the built page are served.
+  const status = (url: string, method = 'GET'): Promise<number> =>
+    app.evaluate(({ net }, [to, how]) => net.fetch(to, { method: how }).then((r) => r.status, () => 0), [url, method] as const)
+  expect(await status('repodeck://app/index.html')).toBe(200)
+  expect(await status('repodeck://app/index.html', 'POST')).toBe(404)
+  expect(await status('repodeck://app/..%2Fmain%2Findex.js')).toBe(404) // main's own code, one folder up
+  expect(await status('repodeck://app/..%2F..%2Fpackage.json')).toBe(404)
+  expect(await status('repodeck://app/assets/no-such-file.js')).toBe(404)
+  expect(await status('repodeck://elsewhere/index.html')).toBe(404)
 })
 
 test('preferences save to repos.json and survive a restart', async () => {
