@@ -17,7 +17,9 @@ export type Handler = (args: never) => unknown
 export class Endpoint {
   private nextId = 1
   private waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer?: ReturnType<typeof setTimeout> }>()
-  private handlers: Record<string, Handler> = {}
+  // A Map, not a plain object: a method name from the other side must never resolve to something
+  // every object inherits ("constructor", "toString", "__proto__").
+  private handlers = new Map<string, Handler>()
   private listeners = new Map<string, Set<(data: unknown) => void>>()
 
   constructor(private wire: Wire) {
@@ -25,7 +27,7 @@ export class Endpoint {
   }
 
   handle(handlers: Record<string, Handler>): void {
-    Object.assign(this.handlers, handlers)
+    for (const [name, fn] of Object.entries(handlers)) this.handlers.set(name, fn)
   }
 
   call<T = unknown>(method: string, args?: unknown, timeoutMs = 0): Promise<T> {
@@ -79,9 +81,9 @@ export class Endpoint {
       if (msg.ok) w.resolve(msg.v)
       else w.reject(new Error(msg.e))
     } else if (msg.t === 'req') {
-      const fn = this.handlers[msg.m]
+      const fn = typeof msg.m === 'string' ? this.handlers.get(msg.m) : undefined
       try {
-        if (!fn) throw new Error(`Unknown method ${msg.m}`)
+        if (typeof fn !== 'function') throw new Error(`Unknown method ${String(msg.m)}`)
         const v = await fn(msg.a as never)
         this.wire.send({ t: 'res', id: msg.id, ok: true, v: v === undefined ? null : v })
       } catch (e) {
