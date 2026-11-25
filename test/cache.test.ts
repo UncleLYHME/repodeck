@@ -1,7 +1,7 @@
-import { existsSync, writeFileSync } from 'node:fs'
+import { accessSync, chmodSync, constants, existsSync, linkSync, lstatSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Cache, FORMAT, PRUNE_DAYS } from '../src/core/cache'
+import { Cache, cacheIn, FORMAT, PRUNE_DAYS } from '../src/core/cache'
 import { run } from '../src/core/git/run'
 import { fingerprint } from '../src/core/git/status'
 import { repoCommits } from '../src/core/stats/dashboard'
@@ -34,6 +34,84 @@ describe('cache', () => {
     const again = new Cache(path)
     expect(again.get('keep', { version: 'v' })).toEqual(['yes', true])
     expect(again.get('old')).toEqual([null, false])
+  })
+
+  it.skipIf(process.platform === 'win32')('keeps the cache to the user, and never writes through a link', () => {
+    const mode = (path: string) => statSync(path).mode & 0o777
+    const dir = tempDir() // RepoDeck's cache folder
+    const path = join(dir, 'cache-v2.json')
+    const t = Date.now() / 1000
+    writeFileSync(path, JSON.stringify({ format: FORMAT, entries: { old: { v: null, t, used: t, data: 'kept' } } }))
+    chmodSync(path, 0o644) // as an earlier version left it: readable by every account
+    const other = join(tempDir(), 'someone-elses.txt')
+    writeFileSync(other, 'untouched')
+    // where earlier versions wrote the cache before swapping it in: a copy a crash left behind, or a link
+    symlinkSync(other, join(dir, 'cache-v2.tmp'))
+
+    const c = cacheIn(dir)
+    expect(mode(path)).toBe(0o600) // as soon as it is read, not only once it is saved again
+    expect(readdirSync(dir)).toEqual(['cache-v2.json']) // the leftover is gone, and nothing new is left lying
+    expect(c.get('old')).toEqual(['kept', true])
+    c.put('pr', { title: 'private work' })
+    c.save()
+    expect(mode(path)).toBe(0o600)
+    expect(readFileSync(other, 'utf8')).toBe('untouched')
+    expect(readdirSync(dir)).toEqual(['cache-v2.json'])
+    expect(new Cache(path).get('pr')).toEqual([{ title: 'private work' }, true])
+
+    // a cache anywhere else leaves the files around it alone, whatever they are called
+    const elsewhere = tempDir()
+    writeFileSync(join(elsewhere, 'report.tmp'), 'untouched')
+    writeFileSync(join(elsewhere, 'cache-v2.tmp'), 'untouched')
+    const report = new Cache(join(elsewhere, 'report.json'))
+    report.put('pr', 1)
+    report.save()
+    expect(readdirSync(elsewhere).sort()).toEqual(['cache-v2.tmp', 'report.json', 'report.tmp'])
+
+    const damaged = join(tempDir(), 'cache.json')
+    writeFileSync(damaged, '{"format": 2, "entries": {"pr": {"data": "private work"') // cut off, still readable
+    chmodSync(damaged, 0o644)
+    expect(new Cache(damaged).entries).toEqual({})
+    expect(mode(damaged)).toBe(0o600)
+
+    // another file's name where the cache should be: not read, and left as it was when the cache is saved
+    for (const link of [symlinkSync, linkSync]) {
+      const linked = join(tempDir(), 'cache.json')
+      link(other, linked)
+      const fresh = new Cache(linked)
+      fresh.put('pr', 1)
+      fresh.save()
+      expect([readFileSync(other, 'utf8'), lstatSync(linked).isFile(), mode(linked)]).toEqual(['untouched', true, 0o600])
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('closes to others what it cannot replace or remove', (ctx) => {
+    // In a folder that takes no new file and lets go of none, the cache an earlier version left
+    // (and the copy a crash left beside it) can't be swapped for private files: they are closed to
+    // the other accounts where they stand.
+    const mode = (path: string) => statSync(path).mode & 0o777
+    const dir = tempDir()
+    const t = Date.now() / 1000
+    const text = JSON.stringify({ format: FORMAT, entries: { old: { v: null, t, used: t, data: 'kept' } } })
+    for (const name of ['cache-v2.json', 'cache-v2.tmp']) {
+      writeFileSync(join(dir, name), text)
+      chmodSync(join(dir, name), 0o644)
+    }
+    chmodSync(dir, 0o555)
+    try {
+      let open = true
+      try {
+        accessSync(dir, constants.W_OK)
+      } catch {
+        open = false
+      }
+      if (open) ctx.skip() // an administrator writes anywhere: no folder is closed to this run
+      const c = cacheIn(dir)
+      expect(c.get('old')).toEqual(['kept', true])
+      expect(readdirSync(dir).map((name) => [name, mode(join(dir, name))])).toEqual([['cache-v2.json', 0o400], ['cache-v2.tmp', 0o400]])
+    } finally {
+      chmodSync(dir, 0o755) // so the folder can be cleared away
+    }
   })
 
   it('ignores other formats and corrupt files', () => {

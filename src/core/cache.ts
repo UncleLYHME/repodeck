@@ -9,9 +9,10 @@ Two kinds of entry:
 Values must be JSON-serialisable. Entries unused for PRUNE_DAYS are dropped on load.
 */
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { cacheDir } from './paths'
+import { readPrivate, removePrivate, replacePrivate } from './private'
 
 export const FORMAT = 2 // bump when a cached value's shape changes
 export const PRUNE_DAYS = 30
@@ -37,7 +38,7 @@ export class Cache {
   private load(): void {
     let raw: { format?: number; entries?: Record<string, Entry> }
     try {
-      raw = JSON.parse(readFileSync(this.path, 'utf8'))
+      raw = JSON.parse(readPrivate(this.path) ?? 'null')
     } catch {
       return
     }
@@ -90,19 +91,26 @@ export class Cache {
     this.timer = null
     try {
       mkdirSync(dirname(this.path), { recursive: true })
-      const tmp = this.path.replace(/\.json$/, '') + '.tmp'
-      writeFileSync(tmp, JSON.stringify({ format: FORMAT, entries: this.entries }))
-      renameSync(tmp, this.path) // atomic: a crash never leaves a half-written cache
+      // A new private file each time, swapped in whole: a crash never leaves a half-written cache.
+      replacePrivate(this.path, JSON.stringify({ format: FORMAT, entries: this.entries }))
     } catch {
       // a cache that can't be written just isn't persisted
     }
   }
 }
 
+/** RepoDeck's cache in `dir`, its own cache folder. */
+export function cacheIn(dir: string): Cache {
+  // Earlier versions wrote the cache under this name first, on every save. A crash at the wrong
+  // moment left that copy lying here, readable by every account.
+  removePrivate(join(dir, 'cache-v2.tmp'))
+  return new Cache(join(dir, 'cache-v2.json'))
+}
+
 let shared: Cache | null = null
 
 export function cache(): Cache {
-  return (shared ??= new Cache(join(cacheDir(), 'cache-v2.json')))
+  return (shared ??= cacheIn(cacheDir()))
 }
 
 /** Tests swap in a throwaway cache. */

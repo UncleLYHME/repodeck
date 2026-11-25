@@ -5,10 +5,11 @@ survives restarts; the file is rewritten to the newest KEEP entries when it grow
 The format is RepoDeck 1.x's, so older history carries over.
 */
 
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { ActivityEntry, Level, Who } from '../shared/types'
 import { stateDir } from './paths'
+import { appendPrivate, readPrivate, replacePrivate } from './private'
 
 export const LIMITS = { keep: 500 }
 
@@ -18,12 +19,7 @@ export class ActivityLog {
   private listeners: ((e: ActivityEntry | null) => void)[] = []
 
   constructor(readonly path: string) {
-    let lines: string[] = []
-    try {
-      lines = readFileSync(path, 'utf8').split('\n').filter(Boolean)
-    } catch {
-      // first run
-    }
+    const lines = (readPrivate(path) ?? '').split('\n').filter(Boolean) // nothing on a first run
     this.lines = lines.length
     for (const line of lines.slice(-LIMITS.keep)) {
       try {
@@ -42,12 +38,13 @@ export class ActivityLog {
     if (this.entries.length > LIMITS.keep) this.entries.splice(0, this.entries.length - LIMITS.keep)
     try {
       mkdirSync(dirname(this.path), { recursive: true })
-      if (this.lines >= 2 * LIMITS.keep) {
-        writeFileSync(this.path, this.entries.map((e) => JSON.stringify(e) + '\n').join(''))
-        this.lines = this.entries.length
-      } else {
-        appendFileSync(this.path, JSON.stringify(entry) + '\n')
+      // Appended to the log when it is RepoDeck's own (or not there yet); otherwise (grown too long,
+      // or something else in its place) written out anew from what is in memory.
+      if (this.lines < 2 * LIMITS.keep && appendPrivate(this.path, JSON.stringify(entry) + '\n')) {
         this.lines += 1
+      } else {
+        replacePrivate(this.path, this.entries.map((e) => JSON.stringify(e) + '\n').join(''))
+        this.lines = this.entries.length
       }
     } catch {
       // the log is a convenience; never let it break an action
@@ -60,7 +57,7 @@ export class ActivityLog {
     this.entries = []
     this.lines = 0
     try {
-      writeFileSync(this.path, '')
+      replacePrivate(this.path, '')
     } catch {
       // nothing to clear
     }
