@@ -16,7 +16,7 @@
 
 import { randomUUID } from 'node:crypto'
 import {
-  closeSync, constants, fchmodSync, fstatSync, ftruncateSync, lstatSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync,
+  closeSync, constants, fchmodSync, fstatSync, ftruncateSync, lstatSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, writeSync,
   type BigIntStats,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -52,10 +52,10 @@ const isPrivate = (info: BigIntStats): boolean => !MODES || modeOf(info) === PRI
 const refused = (e: unknown): boolean => ['EACCES', 'EPERM', 'EBUSY'].includes((e as NodeJS.ErrnoException)?.code ?? '')
 
 /** Change the private file at `path` where it stands. False, with nothing changed, when what is there isn't one. */
-function inPlace(path: string, flags: number, change: (fd: number) => void): boolean {
+function inPlace(path: string, flags: number, change: (fd: number) => void, access: number = constants.O_WRONLY): boolean {
   let fd: number | undefined
   try {
-    fd = openSync(path, constants.O_WRONLY | flags | AS_ITSELF, PRIVATE)
+    fd = openSync(path, access | flags | AS_ITSELF, PRIVATE)
     const info = ownFile(fd, path)
     if (!info || !isPrivate(info)) return false
     change(fd)
@@ -87,6 +87,33 @@ function emptyShut(path: string): boolean {
   }
 }
 
+/** Write all of `bytes` at the very start of the file, whatever its handle's position. */
+function writeAt0(fd: number, bytes: Buffer): void {
+  for (let done = 0; done < bytes.length; ) done += writeSync(fd, bytes, done, bytes.length - done, done)
+}
+
+/**
+ * Put `text` in place of what the open file holds: written over it from the start, then cut to length,
+ * so no moment leaves it empty. When the writing fails (a full disk, a failing drive), what it held is
+ * written back as it was, so the log or cache is not lost to the attempt.
+ */
+function rewriteAt(fd: number, text: string): void {
+  const next = Buffer.from(text, 'utf8')
+  const was = readFileSync(fd)
+  try {
+    writeAt0(fd, next)
+    ftruncateSync(fd, next.length)
+  } catch (e) {
+    try {
+      writeAt0(fd, was)
+      ftruncateSync(fd, was.length)
+    } catch {
+      // nothing more can be done for it here
+    }
+    throw e
+  }
+}
+
 /**
  * Put `text` at `path` as a new private file, in one step. Whatever was there is replaced, not written
  * to. Only in a folder that takes no new file is RepoDeck's own private file there rewritten instead
@@ -105,11 +132,8 @@ export function replacePrivate(path: string, text: string): void {
     } catch {
       // never created, or already swapped in
     }
-    const rewrite = (fd: number): void => {
-      ftruncateSync(fd, 0)
-      writeFileSync(fd, text)
-    }
-    if (!refused(e) || !(inPlace(path, 0, rewrite) || (text === '' && emptyShut(path)))) throw e
+    const rewrite = (fd: number): void => rewriteAt(fd, text)
+    if (!refused(e) || !(inPlace(path, 0, rewrite, constants.O_RDWR) || (text === '' && emptyShut(path)))) throw e
   }
 }
 
